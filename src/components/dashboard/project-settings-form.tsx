@@ -21,6 +21,7 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -125,10 +126,23 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
       </div>
 
       <div>
-        <label className={labelClass}>Slug</label>
-        <p className="text-sm font-mono text-[var(--muted-foreground)]">
+        <label className={labelClass}>Link de galería</label>
+        <button
+          type="button"
+          onClick={() => {
+            const url = `${window.location.origin}/g/${project.slug}`;
+            navigator.clipboard.writeText(url).then(() => {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            });
+          }}
+          className="flex items-center gap-2 text-sm font-mono text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+        >
           /g/{project.slug}
-        </p>
+          <span className="text-xs">
+            {copied ? "✓ Copiado" : "Copiar"}
+          </span>
+        </button>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

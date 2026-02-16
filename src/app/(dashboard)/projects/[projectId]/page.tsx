@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getProject } from "@/lib/actions/project-actions";
 import { ProjectActions } from "@/components/dashboard/project-actions";
+import { CopyGalleryLink } from "@/components/dashboard/copy-gallery-link";
 
 const STATUS_LABELS: Record<string, string> = {
   DRAFT: "Borrador",
@@ -63,10 +64,7 @@ export default async function ProjectPage({
           <p className="text-sm text-[var(--muted-foreground)]">Favoritas</p>
           <p className="text-2xl font-semibold">{project._count.selections}</p>
         </div>
-        <div className="rounded-lg border border-[var(--border)] p-4">
-          <p className="text-sm text-[var(--muted-foreground)]">Link de galería</p>
-          <p className="truncate text-sm font-mono">{galleryUrl}</p>
-        </div>
+        <CopyGalleryLink url={galleryUrl} />
       </div>
 
       {/* Navigation */}
