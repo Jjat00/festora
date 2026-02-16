@@ -3,6 +3,8 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { r2Client } from "@/lib/r2";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
+import archiver from "archiver";
+import { PassThrough, Readable } from "stream";
 
 export async function GET(
   req: NextRequest,
@@ -24,7 +26,6 @@ export async function GET(
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
 
-  // Get photos based on type
   const photos =
     type === "favorites"
       ? await prisma.photo.findMany({
@@ -42,10 +43,13 @@ export async function GET(
         });
 
   if (photos.length === 0) {
-    return NextResponse.json({ error: "No photos to download" }, { status: 400 });
+    return NextResponse.json(
+      { error: "No photos to download" },
+      { status: 400 }
+    );
   }
 
-  // For single photo, stream directly
+  // Single photo: stream directly
   if (photos.length === 1) {
     const command = new GetObjectCommand({
       Bucket: process.env.R2_BUCKET_NAME!,
@@ -61,17 +65,60 @@ export async function GET(
     });
   }
 
-  // For multiple photos, return JSON with download info
-  // ZIP generation would be handled client-side or via a worker
-  const photoList = photos.map((p) => ({
-    objectKey: p.objectKey,
-    filename: p.originalFilename,
-  }));
+  // Multiple photos: stream as ZIP
+  const archive = archiver("zip", { store: true });
+  const passthrough = new PassThrough();
+  archive.pipe(passthrough);
 
-  return NextResponse.json({
-    projectName: project.name,
-    type,
-    photos: photoList,
-    count: photoList.length,
+  // Deduplicate filenames
+  const usedNames = new Map<string, number>();
+  function uniqueName(name: string): string {
+    const count = usedNames.get(name) || 0;
+    usedNames.set(name, count + 1);
+    if (count === 0) return name;
+    const dot = name.lastIndexOf(".");
+    if (dot === -1) return `${name} (${count})`;
+    return `${name.slice(0, dot)} (${count})${name.slice(dot)}`;
+  }
+
+  (async () => {
+    for (const photo of photos) {
+      try {
+        const command = new GetObjectCommand({
+          Bucket: process.env.R2_BUCKET_NAME!,
+          Key: photo.objectKey,
+        });
+        const response = await r2Client.send(command);
+        const body = response.Body;
+        if (!body) continue;
+        const nodeStream = body instanceof Readable
+          ? body
+          : Readable.fromWeb(body as unknown as import("stream/web").ReadableStream);
+        archive.append(nodeStream, { name: uniqueName(photo.originalFilename) });
+      } catch {
+        // Skip failed files
+      }
+    }
+    await archive.finalize();
+  })();
+
+  const webStream = new ReadableStream({
+    start(controller) {
+      passthrough.on("data", (chunk: Buffer) => controller.enqueue(chunk));
+      passthrough.on("end", () => controller.close());
+      passthrough.on("error", (err) => controller.error(err));
+    },
+  });
+
+  const safeName = project.name.replace(/[^a-zA-Z0-9_\- ]/g, "");
+  const filename = type === "favorites"
+    ? `${safeName}-favoritas.zip`
+    : `${safeName}.zip`;
+
+  return new NextResponse(webStream, {
+    headers: {
+      "Content-Type": "application/zip",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+    },
   });
 }
