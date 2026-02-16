@@ -16,7 +16,7 @@ export default async function DashboardPage() {
         </div>
         <Link
           href="/projects/new"
-          className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+          className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--accent-foreground)] hover:opacity-90"
         >
           Nuevo proyecto
         </Link>
@@ -30,7 +30,7 @@ export default async function DashboardPage() {
           </p>
           <Link
             href="/projects/new"
-            className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+            className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--accent-foreground)] hover:opacity-90"
           >
             Crear proyecto
           </Link>

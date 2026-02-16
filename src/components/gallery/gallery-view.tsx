@@ -42,7 +42,7 @@ export function GalleryView({
   return (
     <div>
       <div className="sticky top-0 z-10 mb-4 flex items-center justify-center bg-[var(--background)] py-3">
-        <div className="rounded-full bg-[var(--accent)] px-4 py-1.5 text-sm font-medium text-white">
+        <div className="rounded-full bg-[var(--accent)] px-4 py-1.5 text-sm font-medium text-[var(--accent-foreground)]">
           {total} favorita{total !== 1 && "s"}
         </div>
       </div>
@@ -72,7 +72,7 @@ export function GalleryView({
             {photo.selected && (
               <div className="absolute right-2 top-2 rounded-full bg-[var(--accent)] p-1.5">
                 <svg
-                  className="h-4 w-4 text-white"
+                  className="h-4 w-4 text-[var(--accent-foreground)]"
                   fill="currentColor"
                   viewBox="0 0 20 20"
                 >

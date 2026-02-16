@@ -167,7 +167,7 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
       <button
         type="submit"
         disabled={loading}
-        className="w-full rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+        className="w-full rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-[var(--accent-foreground)] hover:opacity-90 disabled:opacity-50"
       >
         {loading ? "Guardando..." : "Guardar cambios"}
       </button>

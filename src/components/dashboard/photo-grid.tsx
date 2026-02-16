@@ -60,7 +60,7 @@ export function PhotoGrid({
           {photo.selection && (
             <div className="absolute right-2 top-2 rounded-full bg-[var(--accent)] p-1">
               <svg
-                className="h-3 w-3 text-white"
+                className="h-3 w-3 text-[var(--accent-foreground)]"
                 fill="currentColor"
                 viewBox="0 0 20 20"
               >
