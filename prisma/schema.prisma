@@ -1,0 +1,127 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Auth.js v5 Models
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  projects      Project[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Festora Business Models
+model Project {
+  id                String        @id @default(cuid())
+  userId            String
+  name              String
+  clientName        String
+  type              ProjectType   @default(OTHER)
+  date              DateTime
+  slug              String        @unique
+  pin               String?
+  coverKey          String?
+  status            ProjectStatus @default(ACTIVE)
+  selectionDeadline DateTime?
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  photos            Photo[]
+  selections        Selection[]
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([slug])
+}
+
+model Photo {
+  id               String     @id @default(cuid())
+  projectId        String
+  objectKey        String
+  thumbnailKey     String?
+  originalFilename String
+  order            Int
+  width            Int?
+  height           Int?
+  size             Int
+  project          Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  selection        Selection?
+  createdAt        DateTime   @default(now())
+
+  @@index([projectId])
+  @@index([projectId, order])
+}
+
+model Selection {
+  id        String   @id @default(cuid())
+  projectId String
+  photoId   String   @unique
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  photo     Photo    @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, photoId])
+  @@index([projectId])
+}
+
+enum ProjectType {
+  WEDDING
+  QUINCEANERA
+  GRADUATION
+  PORTRAIT
+  CASUAL
+  CORPORATE
+  PRODUCT
+  OTHER
+}
+
+enum ProjectStatus {
+  DRAFT
+  ACTIVE
+  LOCKED
+  ARCHIVED
+}

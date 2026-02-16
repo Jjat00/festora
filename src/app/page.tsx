@@ -1,7 +1,12 @@
 import Image from "next/image";
+import Link from "next/link";
+import { auth } from "@/auth";
 import Particles from "@/components/particles";
+import { SignInButton } from "@/components/sign-in-button";
 
-export default function Home() {
+export default async function Home() {
+  const session = await auth();
+
   return (
     <div className="relative flex min-h-svh flex-col bg-[#09090b] text-white">
       <Particles />
@@ -15,12 +20,16 @@ export default function Home() {
           height={32}
           priority
         />
-        <a
-          href="#"
-          className="rounded-full border border-[#27272a] px-5 py-2 text-xs font-medium text-[#a1a1aa] transition-colors hover:border-[#52525b] hover:text-white"
-        >
-          Acceder
-        </a>
+        {session?.user ? (
+          <Link
+            href="/dashboard"
+            className="rounded-full border border-[#27272a] px-5 py-2 text-xs font-medium text-[#a1a1aa] transition-colors hover:border-[#52525b] hover:text-white"
+          >
+            Dashboard
+          </Link>
+        ) : (
+          <SignInButton />
+        )}
       </nav>
 
       {/* Hero */}
@@ -43,24 +52,31 @@ export default function Home() {
 
           {/* CTAs */}
           <div className="mt-10 flex items-center gap-4">
-            <a
-              href="#"
-              className="inline-flex h-11 items-center gap-2 rounded-full bg-white px-7 text-sm font-medium text-[#09090b] transition-opacity hover:opacity-80"
-            >
-              Comenzar gratis
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+            {session?.user ? (
+              <Link
+                href="/dashboard"
+                className="inline-flex h-11 items-center gap-2 rounded-full bg-white px-7 text-sm font-medium text-[#09090b] transition-opacity hover:opacity-80"
               >
-                <path d="M5 12h14M12 5l7 7-7 7" />
-              </svg>
-            </a>
+                Ir al dashboard
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
+              </Link>
+            ) : (
+              <SignInButton
+                className="inline-flex h-11 items-center gap-2 rounded-full bg-white px-7 text-sm font-medium text-[#09090b] transition-opacity hover:opacity-80"
+                label="Comenzar gratis"
+              />
+            )}
             <a
               href="#"
               className="inline-flex h-11 items-center rounded-full border border-[#27272a] px-7 text-sm font-light text-[#a1a1aa] transition-colors hover:border-[#52525b] hover:text-white"
