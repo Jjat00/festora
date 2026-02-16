@@ -93,7 +93,7 @@ export function NewProjectForm() {
           </label>
           <select id="type" name="type" className={inputClass}>
             {PROJECT_TYPES.map((t) => (
-              <option key={t.value} value={t.value}>
+              <option key={t.value} value={t.value} className="bg-[var(--background)] text-[var(--foreground)]">
                 {t.label}
               </option>
             ))}
