@@ -49,13 +49,22 @@ export function PhotoGrid({
             <p className="truncate text-xs text-white">
               {photo.originalFilename}
             </p>
-            <button
-              onClick={() => handleDelete(photo.id)}
-              disabled={deleting === photo.id}
-              className="mt-1 text-xs text-red-400 hover:text-red-300"
-            >
-              {deleting === photo.id ? "Eliminando..." : "Eliminar"}
-            </button>
+            <div className="mt-1 flex gap-3">
+              <a
+                href={`/api/photo/${photo.id}/download`}
+                download
+                className="text-xs text-white/80 hover:text-white"
+              >
+                Descargar
+              </a>
+              <button
+                onClick={() => handleDelete(photo.id)}
+                disabled={deleting === photo.id}
+                className="text-xs text-red-400 hover:text-red-300"
+              >
+                {deleting === photo.id ? "Eliminando..." : "Eliminar"}
+              </button>
+            </div>
           </div>
           {photo.selection && (
             <div className="absolute right-2 top-2 rounded-full bg-[var(--accent)] p-1">
