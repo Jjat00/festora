@@ -1,36 +1,88 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Festora
 
-## Getting Started
+Herramienta profesional para que fotografos entreguen galerias y sus clientes seleccionen favoritas.
 
-First, run the development server:
+## Requisitos
+
+- Node.js 18+
+- Docker Desktop (con WSL integration si usas Windows)
+- Cuenta de Google Cloud (para OAuth)
+
+## Setup
+
+### 1. Instalar dependencias
+
+```bash
+npm install
+```
+
+### 2. Variables de entorno
+
+```bash
+cp .env.example .env
+```
+
+Completa las variables en `.env`:
+
+| Variable | Descripcion |
+|----------|-------------|
+| `DATABASE_URL` | URL de conexion a PostgreSQL |
+| `AUTH_SECRET` | Secreto para Auth.js (`npx auth secret`) |
+| `AUTH_GOOGLE_ID` | Google OAuth Client ID |
+| `AUTH_GOOGLE_SECRET` | Google OAuth Client Secret |
+| `R2_*` | Credenciales de Cloudflare R2 |
+
+### 3. Base de datos
+
+Levanta PostgreSQL con pgvector usando Docker:
+
+```bash
+docker compose up -d
+```
+
+Esto crea un contenedor con:
+- **PostgreSQL 17** + pgvector
+- **Usuario**: `festora`
+- **Password**: `festora`
+- **Base de datos**: `festora`
+- **Puerto**: `5432`
+
+Verificar que esta corriendo:
+
+```bash
+docker compose ps
+```
+
+Detener la base de datos:
+
+```bash
+docker compose down
+```
+
+> Los datos persisten en un volumen Docker. Para borrar todo incluyendo datos: `docker compose down -v`
+
+### 4. Migraciones
+
+```bash
+npx prisma migrate dev
+```
+
+### 5. Servidor de desarrollo
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abre [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Comandos utiles
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Comando | Descripcion |
+|---------|-------------|
+| `npm run dev` | Servidor de desarrollo |
+| `npm run build` | Build de produccion |
+| `npm run lint` | Ejecutar linter |
+| `docker compose up -d` | Levantar base de datos |
+| `docker compose down` | Detener base de datos |
+| `npx prisma migrate dev` | Ejecutar migraciones |
+| `npx prisma studio` | UI para explorar la base de datos |

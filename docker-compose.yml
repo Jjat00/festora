@@ -1,0 +1,16 @@
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    container_name: festora-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: festora
+      POSTGRES_PASSWORD: festora
+      POSTGRES_DB: festora
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
