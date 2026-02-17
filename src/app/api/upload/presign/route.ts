@@ -6,7 +6,11 @@ import {
   getObjectKey,
   getThumbnailKey,
 } from "@/lib/r2";
-import { ALLOWED_IMAGE_TYPES, MAX_FILE_SIZE } from "@/lib/constants";
+import {
+  ALLOWED_IMAGE_TYPES,
+  MAX_FILE_SIZE,
+  DEFAULT_STORAGE_LIMIT,
+} from "@/lib/constants";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -31,6 +35,33 @@ export async function POST(req: NextRequest) {
   });
   if (!project) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  }
+
+  // Check storage limit
+  const [user, storageAggregate] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { storageLimit: true },
+    }),
+    prisma.photo.aggregate({
+      where: { project: { userId: session.user.id } },
+      _sum: { size: true },
+    }),
+  ]);
+
+  const storageLimit = Number(user?.storageLimit ?? DEFAULT_STORAGE_LIMIT);
+  const currentUsage = storageAggregate._sum.size ?? 0;
+  const uploadSize = files.reduce((sum, f) => sum + (f.size ?? 0), 0);
+
+  if (currentUsage + uploadSize > storageLimit) {
+    return NextResponse.json(
+      {
+        error: "STORAGE_LIMIT_EXCEEDED",
+        used: currentUsage,
+        limit: storageLimit,
+      },
+      { status: 403 }
+    );
   }
 
   // Validate files

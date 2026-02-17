@@ -1,9 +1,14 @@
 import Link from "next/link";
 import { getUserProjects } from "@/lib/actions/project-actions";
+import { getUserStorageUsage } from "@/lib/actions/storage-actions";
 import { ProjectCard } from "@/components/dashboard/project-card";
+import { StorageBar } from "@/components/dashboard/storage-bar";
 
 export default async function DashboardPage() {
-  const projects = await getUserProjects();
+  const [projects, storage] = await Promise.all([
+    getUserProjects(),
+    getUserStorageUsage(),
+  ]);
 
   return (
     <div>
@@ -20,6 +25,10 @@ export default async function DashboardPage() {
         >
           Nuevo proyecto
         </Link>
+      </div>
+
+      <div className="mb-8">
+        <StorageBar used={storage.used} limit={storage.limit} />
       </div>
 
       {projects.length === 0 ? (

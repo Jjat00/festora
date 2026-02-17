@@ -58,14 +58,35 @@ function isDuplicate(file: File, existing: StagedFile[]): boolean {
   );
 }
 
-export function UploadZone({ projectId }: { projectId: string }) {
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  const value = bytes / Math.pow(1024, i);
+  return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[i]}`;
+}
+
+export function UploadZone({
+  projectId,
+  storageUsed,
+  storageLimit,
+}: {
+  projectId: string;
+  storageUsed: number;
+  storageLimit: number;
+}) {
   const router = useRouter();
   const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedCount, setUploadedCount] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [storageError, setStorageError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
+
+  const stagedSize = stagedFiles.reduce((sum, s) => sum + s.file.size, 0);
+  const wouldExceed = storageUsed + stagedSize > storageLimit;
+  const availableSpace = storageLimit - storageUsed;
 
   // Cleanup preview URLs on unmount
   useEffect(() => {
@@ -84,6 +105,7 @@ export function UploadZone({ projectId }: { projectId: string }) {
           !isDuplicate(f, stagedFiles)
       );
       if (newFiles.length === 0) return;
+      setStorageError(null);
 
       const newStaged: StagedFile[] = newFiles.map((file) => ({
         file,
@@ -131,6 +153,12 @@ export function UploadZone({ projectId }: { projectId: string }) {
     });
 
     if (!res.ok) {
+      const errorData = await res.json().catch(() => null);
+      if (errorData?.error === "STORAGE_LIMIT_EXCEEDED") {
+        setStorageError(
+          `Almacenamiento insuficiente. Usados: ${formatBytes(errorData.used)}, límite: ${formatBytes(errorData.limit)}`
+        );
+      }
       setStagedFiles((prev) =>
         prev.map((s) => ({ ...s, status: "error" as const }))
       );
@@ -265,6 +293,42 @@ export function UploadZone({ projectId }: { projectId: string }) {
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
+      {/* Compact storage bar */}
+      <div className="mb-3 flex items-center gap-3">
+        <div className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--border)]">
+          <div
+            className={`h-full rounded-full transition-all ${
+              storageUsed / storageLimit > 0.95
+                ? "bg-red-500"
+                : storageUsed / storageLimit > 0.8
+                  ? "bg-amber-500"
+                  : "bg-[var(--foreground)]"
+            }`}
+            style={{
+              width: `${Math.min((storageUsed / storageLimit) * 100, 100)}%`,
+            }}
+          />
+        </div>
+        <span className="shrink-0 text-xs text-[var(--muted-foreground)]">
+          {formatBytes(storageUsed)} de {formatBytes(storageLimit)}
+        </span>
+      </div>
+
+      {/* Storage warning */}
+      {wouldExceed && hasFiles && (
+        <div className="mb-3 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-500">
+          Las fotos seleccionadas ({formatBytes(stagedSize)}) exceden el espacio
+          disponible ({formatBytes(Math.max(0, availableSpace))})
+        </div>
+      )}
+
+      {/* Storage error from server */}
+      {storageError && (
+        <div className="mb-3 rounded-lg border border-red-500/50 bg-red-500/10 px-3 py-2 text-sm text-red-500">
+          {storageError}
+        </div>
+      )}
+
       {/* Drop zone */}
       <button
         type="button"
@@ -318,7 +382,7 @@ export function UploadZone({ projectId }: { projectId: string }) {
                 type="button"
                 onClick={handleUpload}
                 className="rounded-lg bg-[var(--foreground)] px-4 py-2 text-sm font-medium text-[var(--background)] transition-opacity hover:opacity-90 disabled:opacity-50"
-                disabled={stagedFiles.length === 0}
+                disabled={stagedFiles.length === 0 || wouldExceed}
               >
                 Subir fotos
               </button>

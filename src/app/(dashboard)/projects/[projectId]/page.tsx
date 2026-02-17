@@ -1,8 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getProject } from "@/lib/actions/project-actions";
+import { prisma } from "@/lib/prisma";
 import { ProjectActions } from "@/components/dashboard/project-actions";
 import { CopyGalleryLink } from "@/components/dashboard/copy-gallery-link";
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  const value = bytes / Math.pow(1024, i);
+  return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[i]}`;
+}
 
 const STATUS_LABELS: Record<string, string> = {
   DRAFT: "Borrador",
@@ -33,6 +42,12 @@ export default async function ProjectPage({
 
   const galleryUrl = `${process.env.NEXT_PUBLIC_APP_URL || ""}/g/${project.slug}`;
 
+  const sizeAggregate = await prisma.photo.aggregate({
+    where: { projectId: project.id },
+    _sum: { size: true },
+  });
+  const projectSize = sizeAggregate._sum.size ?? 0;
+
   return (
     <div>
       <div className="mb-8">
@@ -55,7 +70,7 @@ export default async function ProjectPage({
       </div>
 
       {/* Stats */}
-      <div className="mb-8 grid gap-4 sm:grid-cols-3">
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-lg border border-[var(--border)] p-4">
           <p className="text-sm text-[var(--muted-foreground)]">Fotos</p>
           <p className="text-2xl font-semibold">{project._count.photos}</p>
@@ -63,6 +78,10 @@ export default async function ProjectPage({
         <div className="rounded-lg border border-[var(--border)] p-4">
           <p className="text-sm text-[var(--muted-foreground)]">Favoritas</p>
           <p className="text-2xl font-semibold">{project._count.selections}</p>
+        </div>
+        <div className="rounded-lg border border-[var(--border)] p-4">
+          <p className="text-sm text-[var(--muted-foreground)]">Almacenamiento</p>
+          <p className="text-2xl font-semibold">{formatBytes(projectSize)}</p>
         </div>
         <CopyGalleryLink url={galleryUrl} />
       </div>

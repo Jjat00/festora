@@ -10,3 +10,4 @@ export const MAX_CONCURRENT_UPLOADS = 6;
 export const THUMBNAIL_MAX_WIDTH = 800;
 export const PIN_COOKIE_MAX_AGE = 7 * 24 * 60 * 60; // 7 days in seconds
 export const SLUG_LENGTH = 8;
+export const DEFAULT_STORAGE_LIMIT = 1 * 1024 * 1024 * 1024; // 1GB in bytes

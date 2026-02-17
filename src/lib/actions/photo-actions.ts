@@ -3,6 +3,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { deleteObject } from "@/lib/r2";
+import { DEFAULT_STORAGE_LIMIT } from "@/lib/constants";
 import type { ConfirmUploadInput } from "@/lib/types";
 import { revalidatePath } from "next/cache";
 
@@ -24,6 +25,26 @@ export async function confirmUpload(
     select: { id: true },
   });
   if (!project) throw new Error("Project not found");
+
+  // Double-check storage limit (race condition protection)
+  const [user, storageAggregate] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { storageLimit: true },
+    }),
+    prisma.photo.aggregate({
+      where: { project: { userId } },
+      _sum: { size: true },
+    }),
+  ]);
+
+  const storageLimit = Number(user?.storageLimit ?? DEFAULT_STORAGE_LIMIT);
+  const currentUsage = storageAggregate._sum.size ?? 0;
+  const uploadSize = uploads.reduce((sum, u) => sum + u.size, 0);
+
+  if (currentUsage + uploadSize > storageLimit) {
+    throw new Error("STORAGE_LIMIT_EXCEEDED");
+  }
 
   // Get current max order
   const lastPhoto = await prisma.photo.findFirst({
