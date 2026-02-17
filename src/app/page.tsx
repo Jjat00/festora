@@ -8,7 +8,7 @@ export default async function Home() {
   const session = await auth();
 
   return (
-    <div className="relative flex min-h-svh flex-col bg-[#09090b] text-white">
+    <div className="relative flex min-h-svh flex-col bg-background text-foreground">
       <Particles />
 
       {/* Navbar */}
@@ -18,12 +18,13 @@ export default async function Home() {
           alt="Festora"
           width={32}
           height={32}
+          className="brightness-0 dark:invert"
           priority
         />
         {session?.user ? (
           <Link
             href="/dashboard"
-            className="rounded-full border border-[#27272a] px-5 py-2 text-xs font-medium text-[#a1a1aa] transition-colors hover:border-[#52525b] hover:text-white"
+            className="rounded-full border border-border px-5 py-2 text-xs font-medium text-muted-foreground transition-colors hover:border-muted-foreground hover:text-foreground"
           >
             Dashboard
           </Link>
@@ -39,14 +40,14 @@ export default async function Home() {
           <Image
             src="/assets/nombre.png"
             alt="Festora"
-            width={340}
-            height={68}
-            className="brightness-0 invert opacity-90"
+            width={600}
+            height={250}
+            className="w-[340px] md:w-[400px] lg:w-[600px] h-auto brightness-0 dark:invert opacity-90"
             priority
           />
 
           {/* Tagline */}
-          <p className="mt-6 max-w-sm text-center text-base font-light leading-relaxed text-[#52525b]">
+          <p className="mt-6 max-w-sm text-center text-base font-light leading-relaxed text-muted-foreground">
             La forma más elegante de compartir tus fotos con tus clientes.
           </p>
 
@@ -55,7 +56,7 @@ export default async function Home() {
             {session?.user ? (
               <Link
                 href="/dashboard"
-                className="inline-flex h-11 items-center gap-2 rounded-full bg-white px-7 text-sm font-medium text-[#09090b] transition-opacity hover:opacity-80"
+                className="inline-flex h-11 items-center gap-2 rounded-full bg-foreground px-7 text-sm font-medium text-background transition-opacity hover:opacity-80"
               >
                 Ir al dashboard
                 <svg
@@ -73,16 +74,10 @@ export default async function Home() {
               </Link>
             ) : (
               <SignInButton
-                className="inline-flex h-11 items-center gap-2 rounded-full bg-white px-7 text-sm font-medium text-[#09090b] transition-opacity hover:opacity-80"
+                className="inline-flex h-11 items-center gap-2 rounded-full bg-foreground px-7 text-sm font-medium text-background transition-opacity hover:opacity-80"
                 label="Comenzar gratis"
               />
             )}
-            <a
-              href="#"
-              className="inline-flex h-11 items-center rounded-full border border-[#27272a] px-7 text-sm font-light text-[#a1a1aa] transition-colors hover:border-[#52525b] hover:text-white"
-            >
-              Saber más
-            </a>
           </div>
         </div>
       </main>
