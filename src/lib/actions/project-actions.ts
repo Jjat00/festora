@@ -93,6 +93,18 @@ export async function lockProject(projectId: string) {
   return { project };
 }
 
+export async function unlockProject(projectId: string) {
+  const userId = await getAuthenticatedUserId();
+
+  const project = await prisma.project.update({
+    where: { id: projectId, userId },
+    data: { status: "ACTIVE" },
+  });
+
+  revalidatePath(`/projects/${projectId}`);
+  return { project };
+}
+
 export async function getProject(projectId: string) {
   const userId = await getAuthenticatedUserId();
 

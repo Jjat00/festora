@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { deleteProject, lockProject } from "@/lib/actions/project-actions";
+import { deleteProject, lockProject, unlockProject } from "@/lib/actions/project-actions";
 
 export function ProjectActions({
   projectId,
@@ -38,6 +38,18 @@ export function ProjectActions({
     }
   }
 
+  async function handleUnlock() {
+    if (!confirm("¿Desbloquear selecciones? Los clientes podrán volver a modificar sus favoritas."))
+      return;
+    setLoading(true);
+    try {
+      await unlockProject(projectId);
+      router.refresh();
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="flex gap-2">
       {status === "ACTIVE" && (
@@ -47,6 +59,15 @@ export function ProjectActions({
           className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm hover:border-yellow-500 hover:text-yellow-500 disabled:opacity-50"
         >
           Bloquear
+        </button>
+      )}
+      {status === "LOCKED" && (
+        <button
+          onClick={handleUnlock}
+          disabled={loading}
+          className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm hover:border-green-500 hover:text-green-500 disabled:opacity-50"
+        >
+          Desbloquear
         </button>
       )}
       <button
