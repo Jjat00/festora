@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import { Lightbox } from "@/components/lightbox";
+
 interface SelectionItem {
   id: string;
   photoId: string;
@@ -16,6 +19,7 @@ export function SelectionsView({
   projectName: string;
   selections: SelectionItem[];
 }) {
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   function handleExportCSV() {
     const csv = [
       "photo_id,filename",
@@ -67,12 +71,15 @@ export function SelectionsView({
       </div>
 
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
-        {selections.map((s) => (
+        {selections.map((s, i) => (
           <div
             key={s.id}
             className="overflow-hidden rounded-lg border border-[var(--border)] ring-2 ring-[var(--accent)]"
           >
-            <div className="aspect-square bg-[var(--muted)]">
+            <div
+              className="aspect-square cursor-pointer bg-[var(--muted)]"
+              onClick={() => setLightboxIndex(i)}
+            >
               {s.thumbnailKey && (
                 <img
                   src={`/api/photo/${s.photoId}/thumbnail`}
@@ -99,6 +106,18 @@ export function SelectionsView({
           </div>
         ))}
       </div>
+
+      {lightboxIndex !== null && (
+        <Lightbox
+          photos={selections.map((s) => ({
+            id: s.photoId,
+            filename: s.filename,
+          }))}
+          initialIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          showDownload
+        />
+      )}
     </div>
   );
 }

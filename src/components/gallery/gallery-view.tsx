@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toggleSelection } from "@/lib/actions/selection-actions";
+import { Lightbox } from "@/components/lightbox";
 
 interface GalleryPhoto {
   id: string;
@@ -24,6 +25,7 @@ export function GalleryView({
   const [photoStates, setPhotoStates] = useState(photos);
   const [total, setTotal] = useState(initialTotal);
   const [isPending, startTransition] = useTransition();
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   function handleToggle(photoId: string) {
     if (isLocked) return;
@@ -48,18 +50,19 @@ export function GalleryView({
       </div>
 
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
-        {photoStates.map((photo) => (
-          <button
+        {photoStates.map((photo, i) => (
+          <div
             key={photo.id}
-            onClick={() => handleToggle(photo.id)}
-            disabled={isLocked || isPending}
             className={`group relative overflow-hidden rounded-lg border-2 transition-all ${
               photo.selected
                 ? "border-[var(--accent)] ring-2 ring-[var(--accent)]/30"
                 : "border-transparent hover:border-[var(--border)]"
-            } ${isLocked ? "cursor-default" : "cursor-pointer"}`}
+            }`}
           >
-            <div className="aspect-square bg-[var(--muted)]">
+            <div
+              className="aspect-square cursor-pointer bg-[var(--muted)]"
+              onClick={() => setLightboxIndex(i)}
+            >
               {photo.thumbnailKey && (
                 <img
                   src={`/api/photo/${photo.id}/thumbnail`}
@@ -69,24 +72,49 @@ export function GalleryView({
                 />
               )}
             </div>
-            {photo.selected && (
-              <div className="absolute right-2 top-2 rounded-full bg-[var(--accent)] p-1.5">
-                <svg
-                  className="h-4 w-4 text-[var(--accent-foreground)]"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </div>
-            )}
-          </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleToggle(photo.id);
+              }}
+              disabled={isLocked || isPending}
+              className={`absolute right-2 top-2 rounded-full p-1.5 transition-all ${
+                photo.selected
+                  ? "bg-[var(--accent)] text-[var(--accent-foreground)]"
+                  : "bg-black/40 text-white/70 opacity-0 group-hover:opacity-100 hover:bg-black/60 hover:text-white"
+              } ${isLocked ? "cursor-default" : "cursor-pointer"}`}
+              aria-label={photo.selected ? "Quitar de favoritas" : "Agregar a favoritas"}
+            >
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 20 20"
+                fill={photo.selected ? "currentColor" : "none"}
+                stroke="currentColor"
+                strokeWidth={1.5}
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </button>
+          </div>
         ))}
       </div>
+
+      {lightboxIndex !== null && (
+        <Lightbox
+          photos={photoStates.map((p) => ({
+            id: p.id,
+            filename: p.filename,
+            selected: p.selected,
+          }))}
+          initialIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          onToggleSelection={isLocked ? undefined : handleToggle}
+        />
+      )}
     </div>
   );
 }
