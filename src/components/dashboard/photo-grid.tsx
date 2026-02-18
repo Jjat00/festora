@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { deletePhoto, deletePhotos } from "@/lib/actions/photo-actions";
 import { Lightbox } from "@/components/lightbox";
@@ -28,8 +28,15 @@ function PhotoCard({
   onDelete: (id: string) => void;
 }) {
   const [loaded, setLoaded] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
   const ratio =
     photo.width && photo.height ? `${photo.width} / ${photo.height}` : "4 / 3";
+
+  // On SSR hydration, onLoad can fire before React attaches the handler
+  // (image already in browser cache). Check img.complete after mount.
+  useEffect(() => {
+    if (imgRef.current?.complete) setLoaded(true);
+  }, []);
 
   return (
     <div
@@ -63,6 +70,7 @@ function PhotoCard({
           className={`absolute inset-0 h-full w-full object-cover brightness-90 transition-all duration-500 will-change-auto group-hover:brightness-100 ${
             loaded ? "opacity-100" : "opacity-0"
           }`}
+          ref={imgRef}
           style={{ transform: "translate3d(0, 0, 0)" }}
           loading="lazy"
           onLoad={() => setLoaded(true)}
