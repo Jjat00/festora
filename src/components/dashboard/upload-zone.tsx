@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, startTransition } from "react";
 import { useRouter } from "next/navigation";
 import { confirmUpload } from "@/lib/actions/photo-actions";
 import {
@@ -97,23 +97,35 @@ export function UploadZone({
   }, []);
 
   const addFiles = useCallback(
-    (fileList: FileList) => {
+    async (fileList: FileList) => {
+      // Use a Set for O(1) duplicate lookup
+      const existingKeys = new Set(
+        stagedFiles.map((s) => `${s.file.name}-${s.file.size}`)
+      );
       const newFiles = Array.from(fileList).filter(
         (f) =>
           ALLOWED_IMAGE_TYPES.includes(f.type) &&
           f.size <= MAX_FILE_SIZE &&
-          !isDuplicate(f, stagedFiles)
+          !existingKeys.has(`${f.name}-${f.size}`)
       );
       if (newFiles.length === 0) return;
       setStorageError(null);
 
-      const newStaged: StagedFile[] = newFiles.map((file) => ({
-        file,
-        previewUrl: URL.createObjectURL(file),
-        status: "staged" as const,
-      }));
-
-      setStagedFiles((prev) => [...prev, ...newStaged]);
+      // Add files in chunks of 20 to keep the main thread free between renders
+      const CHUNK = 20;
+      for (let i = 0; i < newFiles.length; i += CHUNK) {
+        const chunk = newFiles.slice(i, i + CHUNK);
+        const newStaged: StagedFile[] = chunk.map((file) => ({
+          file,
+          previewUrl: URL.createObjectURL(file),
+          status: "staged" as const,
+        }));
+        startTransition(() => {
+          setStagedFiles((prev) => [...prev, ...newStaged]);
+        });
+        // Yield to the main thread between chunks so the UI stays responsive
+        await new Promise<void>((r) => setTimeout(r, 0));
+      }
     },
     [stagedFiles]
   );
@@ -410,6 +422,8 @@ export function UploadZone({
                   src={staged.previewUrl}
                   alt={staged.file.name}
                   className="h-full w-full object-cover"
+                  loading="lazy"
+                  decoding="async"
                 />
 
                 {/* Remove button (only when not uploading) */}

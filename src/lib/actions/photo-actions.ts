@@ -2,7 +2,7 @@
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { deleteObject } from "@/lib/r2";
+import { deleteObject, deleteObjects } from "@/lib/r2";
 import { DEFAULT_STORAGE_LIMIT } from "@/lib/constants";
 import type { ConfirmUploadInput } from "@/lib/types";
 import { revalidatePath } from "next/cache";
@@ -89,6 +89,25 @@ export async function deletePhoto(photoId: string) {
   }
 
   revalidatePath(`/projects/${photo.projectId}/photos`);
+}
+
+export async function deletePhotos(photoIds: string[], projectId: string) {
+  const userId = await getAuthenticatedUserId();
+
+  const photos = await prisma.photo.findMany({
+    where: { id: { in: photoIds }, project: { userId, id: projectId } },
+    select: { id: true, objectKey: true, thumbnailKey: true },
+  });
+  if (photos.length === 0) return;
+
+  await prisma.photo.deleteMany({ where: { id: { in: photos.map((p) => p.id) } } });
+
+  const keys = photos.flatMap((p) =>
+    p.thumbnailKey ? [p.objectKey, p.thumbnailKey] : [p.objectKey]
+  );
+  await deleteObjects(keys);
+
+  revalidatePath(`/projects/${projectId}/photos`);
 }
 
 export async function reorderPhotos(projectId: string, photoIds: string[]) {
