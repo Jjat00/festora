@@ -6,6 +6,7 @@ import { deleteObject } from "@/lib/r2";
 import { DEFAULT_STORAGE_LIMIT } from "@/lib/constants";
 import type { ConfirmUploadInput } from "@/lib/types";
 import { revalidatePath } from "next/cache";
+import { dispatchPhotoAnalysis } from "@/lib/vision/analysis-actions";
 
 async function getAuthenticatedUserId(): Promise<string> {
   const session = await auth();
@@ -68,6 +69,12 @@ export async function confirmUpload(
   });
 
   revalidatePath(`/projects/${projectId}/photos`);
+
+  // Fire-and-forget: iniciar análisis AI sin bloquear la respuesta al cliente.
+  void dispatchPhotoAnalysis(
+    photos.map((p) => ({ id: p.id, objectKey: p.objectKey, thumbnailKey: p.thumbnailKey }))
+  );
+
   return { photos };
 }
 

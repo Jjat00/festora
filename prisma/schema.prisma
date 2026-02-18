@@ -93,8 +93,18 @@ model Photo {
   selection        Selection?
   createdAt        DateTime   @default(now())
 
+  // AI Analysis (null hasta que el worker procese la foto)
+  aiStatus        AiStatus  @default(PENDING)
+  aiProcessedAt   DateTime?
+
+  // Fase 1: calidad técnica
+  blurScore       Float?    // Laplacian variance. < 100 = borrosa. > 500 = nítida.
+  brisqueScore    Float?    // BRISQUE. < 30 = buena calidad. 0-100.
+  nimaScore       Float?    // NIMA estética. 1-10. > 6 = buena.
+
   @@index([projectId])
   @@index([projectId, order])
+  @@index([projectId, aiStatus])
 }
 
 model Selection {
@@ -107,6 +117,13 @@ model Selection {
 
   @@unique([projectId, photoId])
   @@index([projectId])
+}
+
+enum AiStatus {
+  PENDING
+  QUEUED
+  DONE
+  FAILED
 }
 
 enum ProjectType {
