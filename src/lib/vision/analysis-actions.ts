@@ -111,21 +111,53 @@ async function _processBatch(
         return;
       }
 
+      const blurScore = result.blur?.laplacian_variance ?? null;
+      const brisqueScore = result.quality?.brisque_score ?? null;
+      const nimaScore = result.aesthetic?.nima_aesthetic_score ?? null;
+
+      const compositeScore =
+        blurScore !== null && nimaScore !== null && brisqueScore !== null
+          ? _computeComposite(blurScore, nimaScore, brisqueScore)
+          : null;
+
       await prisma.photo.update({
         where: { id: result.image_id },
         data: {
           aiStatus: "DONE",
           aiProcessedAt: now,
-          // Fase 1: blur score = Laplacian variance
-          blurScore: result.blur?.laplacian_variance ?? null,
-          // Fase 1: BRISQUE técnico
-          brisqueScore: result.quality?.brisque_score ?? null,
-          // Fase 1: NIMA estética (más relevante para el fotógrafo)
-          nimaScore: result.aesthetic?.nima_aesthetic_score ?? null,
+          blurScore,
+          brisqueScore,
+          nimaScore,
+          compositeScore,
         },
       });
     })
   );
+}
+
+/**
+ * Score compuesto 0-100 calculado a partir de los tres scores de Fase 1.
+ * Se recalculará en Fase 2 al añadir emotionValence.
+ *
+ * El blur actúa como multiplicador de penalización (blurGate), no como
+ * componente lineal. Solo penaliza fotos realmente fuera de foco (< 40).
+ * El bokeh intencional (blurScore típico 50-150) no se penaliza.
+ *
+ *   blurGate  = blurScore < 40 ? blurScore / 40 : 1.0
+ *   nima_norm = clamp((nimaScore - 1) / 9, 0, 1)
+ *   quality   = clamp(1 - brisqueScore / 100, 0, 1)
+ *   composite = blurGate × (nima_norm × 0.65 + quality × 0.35) × 100
+ */
+function _computeComposite(
+  blurScore: number,
+  nimaScore: number,
+  brisqueScore: number
+): number {
+  const blurGate = blurScore < 30 ? blurScore / 30 : 1.0;
+  const nimaNorm = Math.max(0, Math.min((nimaScore - 1) / 9, 1.0));
+  const qualityNorm = Math.max(0, 1 - brisqueScore / 100);
+  const raw = blurGate * (nimaNorm * 0.65 + qualityNorm * 0.35);
+  return Math.round(raw * 1000) / 10; // 1 decimal, escala 0-100
 }
 
 async function _markBatchFailed(photoIds: string[]): Promise<void> {

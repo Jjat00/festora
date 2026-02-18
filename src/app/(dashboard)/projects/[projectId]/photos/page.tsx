@@ -4,6 +4,7 @@ import { getProjectPhotos } from "@/lib/actions/photo-actions";
 import { getUserStorageUsage } from "@/lib/actions/storage-actions";
 import { PhotoGrid } from "@/components/dashboard/photo-grid";
 import { UploadZone } from "@/components/dashboard/upload-zone";
+import { AiStatusBanner } from "@/components/dashboard/ai-status-banner";
 import Link from "next/link";
 
 export default async function PhotosPage({
@@ -19,6 +20,10 @@ export default async function PhotosPage({
     getProjectPhotos(projectId),
     getUserStorageUsage(),
   ]);
+
+  const processingCount = photos.filter(
+    (p) => p.aiStatus === "PENDING" || p.aiStatus === "QUEUED"
+  ).length;
 
   return (
     <div>
@@ -38,6 +43,13 @@ export default async function PhotosPage({
         storageUsed={storage.used}
         storageLimit={storage.limit}
       />
+
+      {processingCount > 0 && (
+        <AiStatusBanner
+          projectId={projectId}
+          initialProcessing={processingCount}
+        />
+      )}
 
       {photos.length > 0 && (
         <PhotoGrid photos={photos} projectId={projectId} />

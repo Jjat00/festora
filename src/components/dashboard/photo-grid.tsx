@@ -1,12 +1,38 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { deletePhoto } from "@/lib/actions/photo-actions";
 import { Lightbox } from "@/components/lightbox";
-import type { Photo, Selection } from "@prisma/client";
+import type { Photo } from "@prisma/client";
 
 type PhotoWithSelection = Photo & { selection: { id: string } | null };
+type SortMode = "order" | "quality";
+
+function AiBadge({ photo }: { photo: PhotoWithSelection }) {
+  if (photo.aiStatus === "PENDING" || photo.aiStatus === "QUEUED") {
+    return (
+      <div className="absolute left-2 top-2 rounded-full bg-black/60 p-1.5">
+        <div className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+      </div>
+    );
+  }
+
+  // Solo badge positivo — "★ Destacada" si el composite score es alto.
+  // Evitamos badges negativos de blur que generan falsos positivos con bokeh.
+  const isGreat =
+    photo.compositeScore !== null && photo.compositeScore >= 65;
+
+  if (!isGreat) return null;
+
+  return (
+    <div className="absolute left-2 top-2">
+      <span className="rounded-full bg-yellow-500/90 px-2 py-0.5 text-[10px] font-semibold leading-4 text-white">
+        ★ Destacada
+      </span>
+    </div>
+  );
+}
 
 export function PhotoGrid({
   photos,
@@ -18,6 +44,20 @@ export function PhotoGrid({
   const router = useRouter();
   const [deleting, setDeleting] = useState<string | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [sort, setSort] = useState<SortMode>("order");
+
+  const hasAiData = photos.some(
+    (p) => p.aiStatus === "DONE" || p.aiStatus === "FAILED"
+  );
+
+  const sorted = useMemo(() => {
+    if (sort === "quality") {
+      return [...photos].sort(
+        (a, b) => (b.compositeScore ?? -1) - (a.compositeScore ?? -1)
+      );
+    }
+    return photos;
+  }, [photos, sort]);
 
   async function handleDelete(photoId: string) {
     if (!confirm("¿Eliminar esta foto?")) return;
@@ -32,11 +72,37 @@ export function PhotoGrid({
 
   return (
     <>
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
-        {photos.map((photo, i) => (
+      {/* Toolbar de ordenación — solo visible cuando hay datos de IA */}
+      {hasAiData && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          {(
+            [
+              { mode: "order", label: "Orden original" },
+              { mode: "quality", label: "★ Mejores primero" },
+            ] as { mode: SortMode; label: string }[]
+          ).map(({ mode, label }) => (
+            <button
+              key={mode}
+              onClick={() => setSort(mode)}
+              className={`rounded-full px-3 py-1 text-xs transition-colors ${
+                sort === mode
+                  ? "bg-[var(--accent)] text-[var(--accent-foreground)]"
+                  : "bg-[var(--muted)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        {sorted.map((photo, i) => (
           <div
             key={photo.id}
-            className={`group relative overflow-hidden rounded-lg border border-[var(--border)] ${photo.selection ? "ring-2 ring-[var(--accent)]" : ""}`}
+            className={`group relative overflow-hidden rounded-lg border border-[var(--border)] ${
+              photo.selection ? "ring-2 ring-[var(--accent)]" : ""
+            }`}
           >
             <div
               className="aspect-square cursor-pointer bg-[var(--muted)]"
@@ -51,6 +117,8 @@ export function PhotoGrid({
                 />
               )}
             </div>
+
+            {/* Overlay con acciones */}
             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 p-2 opacity-0 transition-opacity group-hover:opacity-100">
               <p className="truncate text-xs text-white">
                 {photo.originalFilename}
@@ -72,6 +140,11 @@ export function PhotoGrid({
                 </button>
               </div>
             </div>
+
+            {/* Badge de IA — esquina superior izquierda */}
+            <AiBadge photo={photo} />
+
+            {/* Corazón de selección — esquina superior derecha */}
             {photo.selection && (
               <div className="absolute right-2 top-2 rounded-full bg-[var(--accent)] p-1">
                 <svg
@@ -93,7 +166,7 @@ export function PhotoGrid({
 
       {lightboxIndex !== null && (
         <Lightbox
-          photos={photos.map((p) => ({
+          photos={sorted.map((p) => ({
             id: p.id,
             filename: p.originalFilename,
           }))}

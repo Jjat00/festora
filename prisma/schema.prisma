@@ -98,13 +98,15 @@ model Photo {
   aiProcessedAt   DateTime?
 
   // Fase 1: calidad técnica
-  blurScore       Float?    // Laplacian variance. < 100 = borrosa. > 500 = nítida.
+  blurScore       Float?    // Laplacian variance. Borrosa real < 30. Bokeh: 60-150.
   brisqueScore    Float?    // BRISQUE. < 30 = buena calidad. 0-100.
-  nimaScore       Float?    // NIMA estética. 1-10. > 6 = buena.
+  nimaScore       Float?    // NIMA estética. 0-10. > 5.5 = buena para eventos.
+  compositeScore  Float?    // Score compuesto 0-100. Recalculado al añadir Fase 2.
 
   @@index([projectId])
   @@index([projectId, order])
   @@index([projectId, aiStatus])
+  @@index([projectId, compositeScore])
 }
 
 model Selection {
