@@ -27,6 +27,8 @@ export default async function GalleryPage({
           id: true,
           thumbnailKey: true,
           originalFilename: true,
+          width: true,
+          height: true,
           order: true,
           selection: { select: { id: true } },
         },
@@ -85,6 +87,8 @@ export default async function GalleryPage({
             thumbnailKey: p.thumbnailKey,
             filename: p.originalFilename,
             selected: p.selection !== null,
+            width: p.width,
+            height: p.height,
           }))}
           totalSelected={project._count.selections}
           isLocked={isLocked}
