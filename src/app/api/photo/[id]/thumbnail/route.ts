@@ -19,5 +19,8 @@ export async function GET(
 
   const key = photo.thumbnailKey ?? photo.objectKey;
   const signedUrl = await getSignedReadUrl(key);
-  return NextResponse.redirect(signedUrl);
+  const response = NextResponse.redirect(signedUrl);
+  // Cache for 55 min (presigned URL TTL is 60 min — leave 5 min margin)
+  response.headers.set("Cache-Control", "private, max-age=3300, immutable");
+  return response;
 }
