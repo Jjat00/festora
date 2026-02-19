@@ -134,6 +134,41 @@ export interface ClusterOptions {
 }
 
 // ------------------------------------------------------------------ //
+// Fase 3.5 — LLM analysis types
+// ------------------------------------------------------------------ //
+
+// Mirrors the Python LlmPhotoAnalysis Pydantic schema exactly.
+export interface LlmPhotoAnalysis {
+  overall_score: number;
+  discard_reason: string | null;
+  best_in_group: boolean;
+  composition: string;
+  pose_quality: string | null;
+  background_quality: string;
+  highlights: string[];
+  issues: string[];
+  summary: string;
+}
+
+// Single-image response — mirrors LlmAnalyzeResponse from the vision API.
+export interface LlmAnalyzeResponse {
+  ref_id: string | null;
+  analysis: LlmPhotoAnalysis;
+  model_used: string;
+  tokens_used: number;
+  processing_ms: number;
+  error: string | null;
+}
+
+// Options for a single-image call.
+export interface LlmAnalyzeOptions {
+  imageUrl: string;
+  refId?: string;
+  model: string;     // e.g. "anthropic/claude-sonnet-4-6"
+  maxTokens?: number;
+}
+
+// ------------------------------------------------------------------ //
 // Error class
 // ------------------------------------------------------------------ //
 
@@ -216,6 +251,16 @@ export class VisionClient {
       run_quality: options.run_quality ?? true,
       run_emotion: options.run_emotion ?? false,
       run_embedding: options.run_embedding ?? true,
+    });
+  }
+
+  // Single-image LLM analysis — call once per photo.
+  async analyzeLlm(options: LlmAnalyzeOptions): Promise<LlmAnalyzeResponse> {
+    return this.post<LlmAnalyzeResponse>("/v1/analyze/llm", {
+      image_url: options.imageUrl,
+      ref_id: options.refId ?? null,
+      model: options.model,
+      max_tokens: options.maxTokens ?? 500,
     });
   }
 

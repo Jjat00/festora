@@ -86,3 +86,41 @@ Abre [http://localhost:3000](http://localhost:3000).
 | `docker compose down` | Detener base de datos |
 | `npx prisma migrate dev` | Ejecutar migraciones |
 | `npx prisma studio` | UI para explorar la base de datos |
+
+## Análisis con IA
+
+Festora utiliza `festora-vision-api` como microservicio independiente para el análisis de fotos.
+
+### festora-vision-api
+
+Repositorio: https://github.com/Jjat00/festora-vision-api
+
+El microservicio provee:
+- **Fase 1**: blur detection, calidad técnica (BRISQUE), puntuación estética (NIMA)
+- **Fase 2**: análisis de emociones con DeepFace
+- **Fase 3.5**: análisis narrativo con LLM multimodal (Claude, GPT-4.1, Gemini)
+
+Para correrlo localmente:
+
+```bash
+cd ../festora-vision-api
+docker compose up --build
+```
+
+### Variables de entorno adicionales
+
+| Variable | Descripción |
+|----------|-------------|
+| `VISION_API_URL` | URL del microservicio (ej. `http://localhost:8000`) |
+| `VISION_API_KEY` | API key del microservicio (vacío = sin auth) |
+
+Las API keys de los proveedores LLM (Anthropic, OpenAI, Gemini) se configuran en el **`.env` de festora-vision-api**, no en este proyecto.
+
+### Funcionalidades IA del dashboard
+
+- **Análisis técnico**: detecta blur, calidad y emociones. Se dispara manualmente por proyecto.
+- **Análisis LLM**: evaluación narrativa con IA multimodal. Soporta:
+  - Claude Sonnet 4.6 (~$0.006/foto)
+  - GPT-4.1 (~$0.008/foto)
+  - Gemini 2.0 Flash (~$0.001/foto)
+- Los resultados incluyen score 1-10, composición, calidad de pose, puntos fuertes/débiles y resumen.

@@ -107,6 +107,20 @@ model Photo {
   emotionLabel    String?   // Emoción dominante: happy, neutral, sad, angry, etc. Null = sin rostro.
   emotionValence  Float?    // Valencia: -1 (negativa) a +1 (positiva). Null = sin rostro.
 
+  // Fase 3.5: análisis LLM (Claude, GPT, Gemini)
+  llmScore            Int?      // Score 1-10 del LLM.
+  llmModel            String?   // Modelo usado: e.g. "claude-sonnet-4-6".
+  llmSummary          String?   // Frase de resumen generada por el LLM.
+  llmDiscardReason    String?   // Razón de descarte (null = foto ok).
+  llmBestInGroup      Boolean?  // ¿Es la mejor foto del grupo?
+  llmComposition      String?   // Composición: "rule of thirds", etc.
+  llmPoseQuality      String?   // Calidad de la pose.
+  llmBackgroundQuality String?  // Calidad del fondo.
+  llmHighlights       String[]  // Puntos positivos detectados.
+  llmIssues           String[]  // Problemas detectados.
+  llmTokensUsed       Int?      // Tokens consumidos (para tracking de costo).
+  llmAnalyzedAt       DateTime? // Cuándo se analizó.
+
   @@index([projectId])
   @@index([projectId, order])
   @@index([projectId, aiStatus])

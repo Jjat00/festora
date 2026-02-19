@@ -7,6 +7,13 @@ export interface LightboxPhoto {
   id: string;
   filename: string;
   selected?: boolean;
+  llmScore?: number | null;
+  llmSummary?: string | null;
+  llmDiscardReason?: string | null;
+  llmHighlights?: string[];
+  llmIssues?: string[];
+  llmComposition?: string | null;
+  llmPoseQuality?: string | null;
 }
 
 interface LightboxProps {
@@ -227,6 +234,77 @@ export function Lightbox({
             </button>
           )}
         </div>
+
+        {/* LLM info panel — visible solo cuando hay datos */}
+        {(photo.llmSummary || photo.llmDiscardReason) && (
+          <div className="shrink-0 border-t border-white/10 bg-black/60 px-4 py-3 backdrop-blur-sm">
+            <div className="mx-auto max-w-2xl">
+              <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+                {/* Score + estado */}
+                <div className="flex items-center gap-2">
+                  {photo.llmScore != null && (
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold tabular-nums ${
+                      (photo.llmDiscardReason)
+                        ? "bg-red-500/20 text-red-400"
+                        : photo.llmScore >= 7
+                          ? "bg-green-500/20 text-green-400"
+                          : "bg-white/10 text-white/60"
+                    }`}>
+                      {photo.llmScore}/10
+                    </span>
+                  )}
+                  {photo.llmDiscardReason && (
+                    <span className="rounded-full bg-red-500/20 px-2.5 py-0.5 text-xs font-medium text-red-400">
+                      ⚠ Descartar
+                    </span>
+                  )}
+                </div>
+
+                {/* Resumen */}
+                {photo.llmSummary && (
+                  <p className="flex-1 text-sm text-white/80 italic">&ldquo;{photo.llmSummary}&rdquo;</p>
+                )}
+              </div>
+
+              {/* Razón de descarte */}
+              {photo.llmDiscardReason && (
+                <p className="mt-1.5 text-xs text-red-400/80">{photo.llmDiscardReason}</p>
+              )}
+
+              {/* Highlights e issues */}
+              {((photo.llmHighlights?.length ?? 0) > 0 || (photo.llmIssues?.length ?? 0) > 0) && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {photo.llmHighlights?.map((h, i) => (
+                    <span key={i} className="rounded-full bg-green-500/15 px-2 py-0.5 text-[11px] text-green-400">
+                      ✓ {h}
+                    </span>
+                  ))}
+                  {photo.llmIssues?.map((issue, i) => (
+                    <span key={i} className="rounded-full bg-red-500/15 px-2 py-0.5 text-[11px] text-red-400">
+                      ✗ {issue}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Composición / pose */}
+              {(photo.llmComposition || photo.llmPoseQuality) && (
+                <div className="mt-1.5 flex flex-wrap gap-3">
+                  {photo.llmComposition && (
+                    <span className="text-xs text-white/40">
+                      Composición: <span className="text-white/60">{photo.llmComposition}</span>
+                    </span>
+                  )}
+                  {photo.llmPoseQuality && (
+                    <span className="text-xs text-white/40">
+                      Pose: <span className="text-white/60">{photo.llmPoseQuality}</span>
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Bottom thumbnail filmstrip */}
         <div className="shrink-0 bg-linear-to-t from-black/70 to-transparent px-4 pb-4 pt-2">

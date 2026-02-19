@@ -198,3 +198,77 @@ async function _markBatchFailed(photoIds: string[]): Promise<void> {
     data: { aiStatus: "FAILED", aiProcessedAt: now },
   });
 }
+
+// ------------------------------------------------------------------ //
+// Fase 3.5 — LLM analysis dispatch (one call per photo)
+// ------------------------------------------------------------------ //
+
+// Max concurrent LLM calls to avoid rate-limit errors.
+const LLM_CONCURRENCY = 3;
+
+export async function dispatchLlmAnalysis(
+  photos: Array<{ id: string; objectKey: string; thumbnailKey?: string | null }>,
+  model: string
+): Promise<void> {
+  if (photos.length === 0) return;
+
+  // Process in windows of LLM_CONCURRENCY to respect rate limits.
+  for (let i = 0; i < photos.length; i += LLM_CONCURRENCY) {
+    const window = photos.slice(i, i + LLM_CONCURRENCY);
+    await Promise.all(window.map((photo) => _processLlmPhoto(photo, model)));
+  }
+}
+
+async function _processLlmPhoto(
+  photo: { id: string; objectKey: string; thumbnailKey?: string | null },
+  model: string
+): Promise<void> {
+  let presignedUrl: string;
+  try {
+    presignedUrl = await getSignedReadUrl(photo.thumbnailKey ?? photo.objectKey);
+  } catch (err) {
+    console.error(`[llm-vision] Presigned URL error for ${photo.id}:`, err);
+    return;
+  }
+
+  let result;
+  try {
+    result = await getClient().analyzeLlm({
+      imageUrl: presignedUrl,
+      refId: photo.id,
+      model,
+    });
+  } catch (err) {
+    if (err instanceof VisionApiError) {
+      console.error(`[llm-vision] API error for ${photo.id}: [${err.code}] ${err.message}`);
+    } else {
+      console.error(`[llm-vision] Unexpected error for ${photo.id}:`, err);
+    }
+    return;
+  }
+
+  if (result.error) {
+    console.error(`[llm-vision] LLM error for ${photo.id}: ${result.error}`);
+    return;
+  }
+
+  const a = result.analysis;
+  await prisma.photo.update({
+    where: { id: photo.id },
+    data: {
+      llmScore: a.overall_score,
+      llmModel: result.model_used,
+      llmSummary: a.summary,
+      llmDiscardReason: a.discard_reason,
+      llmBestInGroup: a.best_in_group,
+      llmComposition: a.composition,
+      llmPoseQuality: a.pose_quality,
+      llmBackgroundQuality: a.background_quality,
+      llmHighlights: a.highlights,
+      llmIssues: a.issues,
+      llmTokensUsed: result.tokens_used,
+      llmAnalyzedAt: new Date(),
+    },
+  });
+  console.log(`[llm-vision] Saved photo ${photo.id} | score=${a.overall_score} model=${result.model_used}`);
+}

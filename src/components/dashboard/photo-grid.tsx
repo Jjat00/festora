@@ -8,14 +8,12 @@ import type { Prisma } from "@prisma/client";
 
 type PhotoWithSelection = Prisma.PhotoGetPayload<{
   include: { selection: { select: { id: true } } };
-}> & {
-  aiStatus?: "PENDING" | "QUEUED" | "DONE" | "FAILED";
-  compositeScore?: number | null;
-};
-type SortMode = "order" | "quality";
+}>;
+type SortMode = "order" | "quality" | "llm";
 
 function AiBadge({ photo }: { photo: PhotoWithSelection }) {
-  if (photo.aiStatus === "PENDING" || photo.aiStatus === "QUEUED") {
+  // Spinner solo cuando está en cola/procesando activamente
+  if (photo.aiStatus === "QUEUED") {
     return (
       <div className="absolute left-2 top-2 rounded-full bg-black/60 p-1.5">
         <div className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
@@ -23,17 +21,58 @@ function AiBadge({ photo }: { photo: PhotoWithSelection }) {
     );
   }
 
-  // Solo badge positivo — "★ Destacada" si el composite score es alto.
-  // Evitamos badges negativos de blur que generan falsos positivos con bokeh.
-  const isGreat =
-    photo.compositeScore != null && photo.compositeScore >= 65;
+  // LLM: Descartar tiene prioridad sobre Destacada
+  if (photo.llmDiscardReason) {
+    return (
+      <div className="absolute left-2 top-2">
+        <span
+          title={photo.llmDiscardReason}
+          className="rounded-full bg-red-600/90 px-2 py-0.5 text-[10px] font-semibold leading-4 text-white"
+        >
+          ⚠ Descartar
+        </span>
+      </div>
+    );
+  }
 
+  // LLM: Mejor del grupo
+  if (photo.llmBestInGroup) {
+    return (
+      <div className="absolute left-2 top-2">
+        <span className="rounded-full bg-blue-500/90 px-2 py-0.5 text-[10px] font-semibold leading-4 text-white">
+          ★ Mejor
+        </span>
+      </div>
+    );
+  }
+
+  // Score técnico: Destacada si composite score alto
+  const isGreat = photo.compositeScore != null && photo.compositeScore >= 65;
   if (!isGreat) return null;
 
   return (
     <div className="absolute left-2 top-2">
       <span className="rounded-full bg-yellow-500/90 px-2 py-0.5 text-[10px] font-semibold leading-4 text-white">
         ★ Destacada
+      </span>
+    </div>
+  );
+}
+
+function LlmScoreBadge({ photo }: { photo: PhotoWithSelection }) {
+  if (photo.llmScore == null) return null;
+  return (
+    <div className="absolute right-2 top-2">
+      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold leading-4 tabular-nums ${
+        photo.llmDiscardReason
+          ? "bg-red-600/80 text-white"
+          : photo.llmScore >= 8
+            ? "bg-green-600/80 text-white"
+            : photo.llmScore >= 6
+              ? "bg-yellow-600/80 text-white"
+              : "bg-black/60 text-white/80"
+      }`}>
+        {photo.llmScore}/10
       </span>
     </div>
   );
@@ -163,8 +202,9 @@ function PhotoCard({
         </div>
       )}
 
-      {/* Badge de IA */}
+      {/* Badges de IA */}
       {!isSelecting && <AiBadge photo={photo} />}
+      {!isSelecting && <LlmScoreBadge photo={photo} />}
 
       {/* Favorita indicator */}
       {photo.selection && !isSelecting && (
@@ -201,11 +241,17 @@ export function PhotoGrid({
   const hasAiData = photos.some(
     (p) => p.aiStatus === "DONE" || p.aiStatus === "FAILED"
   );
+  const hasLlmData = photos.some((p) => p.llmScore != null);
 
   const sorted = useMemo(() => {
     if (sort === "quality") {
       return [...photos].sort(
         (a, b) => (b.compositeScore ?? -1) - (a.compositeScore ?? -1)
+      );
+    }
+    if (sort === "llm") {
+      return [...photos].sort(
+        (a, b) => (b.llmScore ?? -1) - (a.llmScore ?? -1)
       );
     }
     return photos;
@@ -306,14 +352,15 @@ export function PhotoGrid({
           </>
         ) : (
           <div className="flex w-full items-center justify-between">
-            {hasAiData && (
+            {(hasAiData || hasLlmData) && (
               <div className="flex flex-wrap items-center gap-2">
                 {(
                   [
-                    { mode: "order", label: "Orden original" },
-                    { mode: "quality", label: "★ Mejores primero" },
-                  ] as { mode: SortMode; label: string }[]
-                ).map(({ mode, label }) => (
+                    { mode: "order" as SortMode, label: "Orden original", show: true },
+                    { mode: "quality" as SortMode, label: "★ Técnica", show: hasAiData },
+                    { mode: "llm" as SortMode, label: "✦ LLM score", show: hasLlmData },
+                  ] as { mode: SortMode; label: string; show: boolean }[]
+                ).filter((x) => x.show).map(({ mode, label }) => (
                   <button
                     key={mode}
                     onClick={() => setSort(mode)}
@@ -341,7 +388,9 @@ export function PhotoGrid({
       {/* Grid */}
       <div className={sort === "quality"
         ? "grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"
-        : "columns-1 gap-4 sm:columns-2 lg:columns-3 xl:columns-4"
+        : sort === "llm"
+          ? "grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"
+          : "columns-1 gap-4 sm:columns-2 lg:columns-3 xl:columns-4"
       }>
         {sorted.map((photo, i) => (
           <PhotoCard
@@ -364,6 +413,13 @@ export function PhotoGrid({
           photos={sorted.map((p) => ({
             id: p.id,
             filename: p.originalFilename,
+            llmScore: p.llmScore,
+            llmSummary: p.llmSummary,
+            llmDiscardReason: p.llmDiscardReason,
+            llmHighlights: p.llmHighlights,
+            llmIssues: p.llmIssues,
+            llmComposition: p.llmComposition,
+            llmPoseQuality: p.llmPoseQuality,
           }))}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
