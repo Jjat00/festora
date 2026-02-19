@@ -101,7 +101,11 @@ model Photo {
   blurScore       Float?    // Laplacian variance. Borrosa real < 30. Bokeh: 60-150.
   brisqueScore    Float?    // BRISQUE. < 30 = buena calidad. 0-100.
   nimaScore       Float?    // NIMA estética. 0-10. > 5.5 = buena para eventos.
-  compositeScore  Float?    // Score compuesto 0-100. Recalculado al añadir Fase 2.
+  compositeScore  Float?    // Score compuesto 0-100. Incluye blur + calidad + emoción.
+
+  // Fase 2: análisis de emociones (DeepFace)
+  emotionLabel    String?   // Emoción dominante: happy, neutral, sad, angry, etc. Null = sin rostro.
+  emotionValence  Float?    // Valencia: -1 (negativa) a +1 (positiva). Null = sin rostro.
 
   @@index([projectId])
   @@index([projectId, order])

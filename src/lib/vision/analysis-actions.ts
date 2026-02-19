@@ -79,7 +79,7 @@ async function _processBatch(
       })),
       run_blur: true,
       run_quality: true,
-      run_emotion: false,    // Fase 2
+      run_emotion: true,     // Fase 2
       run_embedding: false,  // Fase 4
     });
   } catch (err) {
@@ -115,9 +115,14 @@ async function _processBatch(
       const brisqueScore = result.quality?.brisque_score ?? null;
       const nimaScore = result.aesthetic?.nima_aesthetic_score ?? null;
 
+      // Fase 2: emoción del rostro dominante (null si no hay rostro)
+      const dominantEmotion = result.emotion?.faces?.[0]?.dominant_emotion ?? null;
+      const emotionLabel = dominantEmotion;
+      const emotionValence = dominantEmotion ? _emotionToValence(dominantEmotion) : null;
+
       const compositeScore =
         blurScore !== null && nimaScore !== null && brisqueScore !== null
-          ? _computeComposite(blurScore, nimaScore, brisqueScore)
+          ? _computeComposite(blurScore, nimaScore, brisqueScore, emotionValence)
           : null;
 
       await prisma.photo.update({
@@ -129,6 +134,8 @@ async function _processBatch(
           brisqueScore,
           nimaScore,
           compositeScore,
+          emotionLabel,
+          emotionValence,
         },
       });
     })
@@ -136,27 +143,51 @@ async function _processBatch(
 }
 
 /**
- * Score compuesto 0-100 calculado a partir de los tres scores de Fase 1.
- * Se recalculará en Fase 2 al añadir emotionValence.
+ * Mapea la emoción dominante detectada por DeepFace a un valor de valencia.
  *
- * El blur actúa como multiplicador de penalización (blurGate), no como
- * componente lineal. Solo penaliza fotos realmente fuera de foco (< 40).
- * El bokeh intencional (blurScore típico 50-150) no se penaliza.
+ * Valencia: -1 (muy negativa) → 0 (neutral) → +1 (muy positiva).
+ * Null = no hay rostro → no afecta el compositeScore.
+ */
+function _emotionToValence(emotion: string): number {
+  const map: Record<string, number> = {
+    happy:    0.9,
+    surprise: 0.3,
+    neutral:  0.0,
+    sad:     -0.5,
+    fear:    -0.6,
+    disgust: -0.7,
+    angry:   -0.8,
+  };
+  return map[emotion.toLowerCase()] ?? 0.0;
+}
+
+/**
+ * Score compuesto 0-100 (Fase 1 + 2).
  *
- *   blurGate  = blurScore < 40 ? blurScore / 40 : 1.0
- *   nima_norm = clamp((nimaScore - 1) / 9, 0, 1)
- *   quality   = clamp(1 - brisqueScore / 100, 0, 1)
- *   composite = blurGate × (nima_norm × 0.65 + quality × 0.35) × 100
+ * Pesos:
+ *   - NIMA estética (60 %): predicción de preferencia humana.
+ *   - Calidad técnica BRISQUE (30 %): ruido, compresión.
+ *   - Emoción (10 %): bonus por emoción positiva en rostro detectado.
+ *     Sin rostro → emoción neutral (0.5 normalizado), no penaliza.
+ *
+ * El blur actúa como multiplicador de penalización (blurGate):
+ *   solo penaliza fotos realmente desenfocadas (blurScore < 30).
+ *   Bokeh intencional (blurScore 50-150) no se penaliza.
  */
 function _computeComposite(
   blurScore: number,
   nimaScore: number,
-  brisqueScore: number
+  brisqueScore: number,
+  emotionValence: number | null,
 ): number {
-  const blurGate = blurScore < 30 ? blurScore / 30 : 1.0;
-  const nimaNorm = Math.max(0, Math.min((nimaScore - 1) / 9, 1.0));
+  const blurGate   = blurScore < 30 ? blurScore / 30 : 1.0;
+  const nimaNorm   = Math.max(0, Math.min((nimaScore - 1) / 9, 1.0));
   const qualityNorm = Math.max(0, 1 - brisqueScore / 100);
-  const raw = blurGate * (nimaNorm * 0.65 + qualityNorm * 0.35);
+  // Sin rostro → neutral (0.5); con rostro → mapea -1..1 → 0..1
+  const emotionNorm = emotionValence !== null
+    ? Math.max(0, Math.min((emotionValence + 1) / 2, 1.0))
+    : 0.5;
+  const raw = blurGate * (nimaNorm * 0.60 + qualityNorm * 0.30 + emotionNorm * 0.10);
   return Math.round(raw * 1000) / 10; // 1 decimal, escala 0-100
 }
 
