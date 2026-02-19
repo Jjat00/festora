@@ -230,6 +230,35 @@ export function Lightbox({
 
         {/* Bottom thumbnail filmstrip */}
         <div className="shrink-0 bg-linear-to-t from-black/70 to-transparent px-4 pb-4 pt-2">
+          {/* Like button prominente para clientes */}
+          {onToggleSelection && (
+            <div className="mb-3 flex justify-center">
+              <button
+                onClick={() => onToggleSelection(photo.id)}
+                className={`flex items-center gap-2 rounded-full px-5 py-2 text-sm font-medium backdrop-blur-sm transition-all active:scale-95 ${
+                  photo.selected
+                    ? "bg-white/25 text-white"
+                    : "bg-black/35 text-white/60 hover:bg-black/55 hover:text-white"
+                }`}
+                aria-label={photo.selected ? "Quitar de favoritas" : "Agregar a favoritas"}
+              >
+                <svg
+                  className="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill={photo.selected ? "currentColor" : "none"}
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                {photo.selected ? "Quitar de favoritas" : "Agregar a favoritas"}
+              </button>
+            </div>
+          )}
           <div className="mx-auto flex h-14 items-center justify-center gap-1">
             {visibleThumbs.map((p) => {
               const realIndex = photos.indexOf(p);

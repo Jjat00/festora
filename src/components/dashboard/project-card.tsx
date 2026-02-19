@@ -47,7 +47,7 @@ export function ProjectCard({ project }: { project: ProjectWithCounts }) {
         </span>
       </div>
 
-      <h3 className="mb-1 font-medium group-hover:text-accent">
+      <h3 className="mb-1 font-medium text-foreground/70 group-hover:text-foreground">
         {project.name}
       </h3>
       <p className="mb-3 text-sm text-muted-foreground">
