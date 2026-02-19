@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 import { AnimatePresence, motion, MotionConfig } from "framer-motion";
 
 export interface LightboxPhoto {
@@ -36,17 +36,19 @@ export function Lightbox({
   onToggleSelection,
   showDownload,
 }: LightboxProps) {
-  const [index, setIndex] = useState(initialIndex);
-  const [direction, setDirection] = useState(0);
-  const [loaded, setLoaded] = useState(false);
+  const [index, setIndex] = useReducer((_: number, n: number) => n, initialIndex);
+  const [direction, setDirection] = useReducer((_: number, n: number) => n, 0);
+  // Track which photo IDs have fully loaded — persists across navigation
+  const loadedIds = useRef(new Set<string>());
+  const [, forceUpdate] = useReducer((x: number) => x + 1, 0);
   const touchStartX = useRef(0);
   const photo = photos[index];
 
   function changeIndex(newIndex: number) {
     if (newIndex === index || newIndex < 0 || newIndex >= photos.length) return;
     setDirection(newIndex > index ? 1 : -1);
-    setLoaded(false);
     setIndex(newIndex);
+    // No reset — loadedIds persists so already-seen photos skip the fade
   }
 
   const goTo = useCallback(
@@ -176,23 +178,26 @@ export function Lightbox({
               exit="exit"
               className="absolute flex h-full w-full items-center justify-center"
             >
-              {/* Thumbnail como placeholder inmediato (ya está en caché del grid) */}
+              {/* Thumbnail placeholder — oculto si la full-res ya cargó antes */}
               <img
                 src={`/api/photo/${photo.id}/thumbnail`}
                 alt=""
                 className={`absolute max-h-full max-w-full select-none object-contain transition-opacity duration-200 ${
-                  loaded ? "opacity-0" : "opacity-100"
+                  loadedIds.current.has(photo.id) ? "opacity-0" : "opacity-100"
                 }`}
                 draggable={false}
               />
-              {/* Imagen full-res — aparece con fade cuando carga */}
+              {/* Full-res — fade-in solo la primera vez; instantáneo en revisitas */}
               <img
                 src={`/api/photo/${photo.id}/view`}
                 alt={photo.filename}
                 className={`absolute max-h-full max-w-full select-none object-contain transition-opacity duration-500 ${
-                  loaded ? "opacity-100" : "opacity-0"
+                  loadedIds.current.has(photo.id) ? "opacity-100" : "opacity-0"
                 }`}
-                onLoad={() => setLoaded(true)}
+                onLoad={() => {
+                  loadedIds.current.add(photo.id);
+                  forceUpdate();
+                }}
                 draggable={false}
               />
             </motion.div>

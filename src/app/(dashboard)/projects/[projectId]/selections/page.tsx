@@ -3,7 +3,6 @@ import { getProject } from "@/lib/actions/project-actions";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { SelectionsView } from "@/components/dashboard/selections-view";
-import Link from "next/link";
 
 export default async function SelectionsPage({
   params,
@@ -35,14 +34,7 @@ export default async function SelectionsPage({
 
   return (
     <div>
-      <Link
-        href={`/projects/${projectId}`}
-        className="mb-4 inline-block text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-      >
-        &larr; {project.name}
-      </Link>
-      <h1 className="mb-2 text-2xl font-semibold">Favoritas</h1>
-      <p className="mb-8 text-sm text-[var(--muted-foreground)]">
+      <p className="mb-6 text-sm text-[var(--muted-foreground)]">
         {selections.length} foto{selections.length !== 1 && "s"} seleccionada
         {selections.length !== 1 && "s"} de {project._count.photos}
       </p>
