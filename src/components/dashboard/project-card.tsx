@@ -34,7 +34,7 @@ export function ProjectCard({ project }: { project: ProjectWithCounts }) {
   return (
     <Link
       href={`/projects/${project.id}`}
-      className="group rounded-lg border border-[var(--border)] p-4 transition-colors hover:border-[var(--accent)]"
+      className="group rounded-lg border border-border p-4 transition-colors hover:border-accent"
     >
       <div className="mb-3 flex items-center justify-between">
         <span
@@ -42,24 +42,24 @@ export function ProjectCard({ project }: { project: ProjectWithCounts }) {
         >
           {STATUS_LABELS[project.status]}
         </span>
-        <span className="text-xs text-[var(--muted-foreground)]">
+        <span className="text-xs text-muted-foreground">
           {TYPE_LABELS[project.type]}
         </span>
       </div>
 
-      <h3 className="mb-1 font-medium group-hover:text-[var(--accent)]">
+      <h3 className="mb-1 font-medium group-hover:text-accent">
         {project.name}
       </h3>
-      <p className="mb-3 text-sm text-[var(--muted-foreground)]">
+      <p className="mb-3 text-sm text-muted-foreground">
         {project.clientName}
       </p>
 
-      <div className="flex gap-4 text-xs text-[var(--muted-foreground)]">
+      <div className="flex gap-4 text-xs text-muted-foreground">
         <span>{project._count.photos} fotos</span>
         <span>{project._count.selections} favoritas</span>
       </div>
 
-      <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+      <p className="mt-2 text-xs text-muted-foreground">
         {new Date(project.date).toLocaleDateString("es-MX", {
           year: "numeric",
           month: "short",

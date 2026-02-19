@@ -32,12 +32,12 @@ export default function PinPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--background)] px-4">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm">
         <h1 className="mb-2 text-center text-2xl font-semibold">
           Galería protegida
         </h1>
-        <p className="mb-8 text-center text-sm text-[var(--muted-foreground)]">
+        <p className="mb-8 text-center text-sm text-muted-foreground">
           Ingresa el PIN para acceder
         </p>
 
@@ -54,12 +54,12 @@ export default function PinPage() {
             placeholder="PIN"
             maxLength={8}
             autoFocus
-            className="w-full rounded-lg border border-[var(--border)] bg-transparent px-4 py-3 text-center text-lg tracking-widest outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]"
+            className="w-full rounded-lg border border-border bg-transparent px-4 py-3 text-center text-lg tracking-widest outline-none focus:border-accent focus:ring-1 focus:ring-accent"
           />
           <button
             type="submit"
             disabled={loading || !pin}
-            className="w-full rounded-lg bg-[var(--accent)] px-4 py-3 text-sm font-medium text-[var(--accent-foreground)] hover:opacity-90 disabled:opacity-50"
+            className="w-full rounded-lg bg-accent px-4 py-3 text-sm font-medium text-accent-foreground hover:opacity-90 disabled:opacity-50"
           >
             {loading ? "Verificando..." : "Acceder"}
           </button>

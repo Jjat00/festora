@@ -307,21 +307,21 @@ export function UploadZone({
     >
       {/* Compact storage bar */}
       <div className="mb-3 flex items-center gap-3">
-        <div className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--border)]">
+        <div className="h-2 flex-1 overflow-hidden rounded-full bg-border">
           <div
             className={`h-full rounded-full transition-all ${
               storageUsed / storageLimit > 0.95
                 ? "bg-red-500"
                 : storageUsed / storageLimit > 0.8
                   ? "bg-amber-500"
-                  : "bg-[var(--foreground)]"
+                  : "bg-foreground"
             }`}
             style={{
               width: `${Math.min((storageUsed / storageLimit) * 100, 100)}%`,
             }}
           />
         </div>
-        <span className="shrink-0 text-xs text-[var(--muted-foreground)]">
+        <span className="shrink-0 text-xs text-muted-foreground">
           {formatBytes(storageUsed)} de {formatBytes(storageLimit)}
         </span>
       </div>
@@ -348,8 +348,8 @@ export function UploadZone({
         disabled={isUploading}
         className={`flex w-full cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed transition-colors ${
           isDragging
-            ? "border-[var(--foreground)] bg-[var(--foreground)]/5"
-            : "border-[var(--border)] hover:border-[var(--accent)]"
+            ? "border-foreground bg-foreground/5"
+            : "border-border hover:border-accent"
         } ${isUploading ? "pointer-events-none opacity-50" : ""} ${
           hasFiles ? "p-4" : "p-8"
         }`}
@@ -360,7 +360,7 @@ export function UploadZone({
             : "Arrastra fotos o haz clic para seleccionar"}
         </p>
         {!hasFiles && (
-          <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+          <p className="mt-1 text-sm text-muted-foreground">
             JPG, PNG, WebP, HEIC. Máximo 20MB por foto.
           </p>
         )}
@@ -384,7 +384,7 @@ export function UploadZone({
         <div className="mt-4">
           {/* Header with count and upload button */}
           <div className="mb-3 flex items-center justify-between">
-            <p className="text-sm text-[var(--muted-foreground)]">
+            <p className="text-sm text-muted-foreground">
               {isUploading
                 ? `Subiendo ${uploadedCount} de ${stagedFiles.length}...`
                 : `${stagedFiles.length} foto${stagedFiles.length !== 1 ? "s" : ""} seleccionada${stagedFiles.length !== 1 ? "s" : ""}`}
@@ -393,7 +393,7 @@ export function UploadZone({
               <button
                 type="button"
                 onClick={handleUpload}
-                className="rounded-lg bg-[var(--foreground)] px-4 py-2 text-sm font-medium text-[var(--background)] transition-opacity hover:opacity-90 disabled:opacity-50"
+                className="rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
                 disabled={stagedFiles.length === 0 || wouldExceed}
               >
                 Subir fotos
@@ -403,9 +403,9 @@ export function UploadZone({
 
           {/* Progress bar */}
           {isUploading && (
-            <div className="mb-3 h-1 overflow-hidden rounded-full bg-[var(--border)]">
+            <div className="mb-3 h-1 overflow-hidden rounded-full bg-border">
               <div
-                className="h-full rounded-full bg-[var(--foreground)] transition-all duration-300 ease-out"
+                className="h-full rounded-full bg-foreground transition-all duration-300 ease-out"
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
@@ -416,7 +416,7 @@ export function UploadZone({
             {stagedFiles.map((staged, index) => (
               <div
                 key={`${staged.file.name}-${staged.file.size}`}
-                className="group relative aspect-square overflow-hidden rounded-lg bg-[var(--border)]"
+                className="group relative aspect-square overflow-hidden rounded-lg bg-border"
               >
                 <img
                   src={staged.previewUrl}

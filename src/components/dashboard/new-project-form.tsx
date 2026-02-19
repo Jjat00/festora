@@ -47,7 +47,7 @@ export function NewProjectForm() {
   }
 
   const inputClass =
-    "w-full rounded-lg border border-[var(--border)] bg-transparent px-3 py-2 text-sm outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]";
+    "w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent";
   const labelClass = "mb-1 block text-sm font-medium";
 
   return (
@@ -93,7 +93,7 @@ export function NewProjectForm() {
           </label>
           <select id="type" name="type" className={inputClass}>
             {PROJECT_TYPES.map((t) => (
-              <option key={t.value} value={t.value} className="bg-[var(--background)] text-[var(--foreground)]">
+              <option key={t.value} value={t.value} className="bg-background text-foreground">
                 {t.label}
               </option>
             ))}
@@ -112,7 +112,7 @@ export function NewProjectForm() {
         <div>
           <label htmlFor="pin" className={labelClass}>
             PIN de acceso{" "}
-            <span className="text-[var(--muted-foreground)]">(opcional)</span>
+            <span className="text-muted-foreground">(opcional)</span>
           </label>
           <input
             id="pin"
@@ -127,7 +127,7 @@ export function NewProjectForm() {
         <div>
           <label htmlFor="selectionDeadline" className={labelClass}>
             Fecha límite{" "}
-            <span className="text-[var(--muted-foreground)]">(opcional)</span>
+            <span className="text-muted-foreground">(opcional)</span>
           </label>
           <input
             id="selectionDeadline"
@@ -141,7 +141,7 @@ export function NewProjectForm() {
       <button
         type="submit"
         disabled={loading}
-        className="w-full rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-[var(--accent-foreground)] hover:opacity-90 disabled:opacity-50"
+        className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground hover:opacity-90 disabled:opacity-50"
       >
         {loading ? "Creando..." : "Crear proyecto"}
       </button>

@@ -44,9 +44,9 @@ export function SelectionsView({
 
   if (selections.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-[var(--border)] py-16">
+      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16">
         <p className="text-lg font-medium">Sin selecciones</p>
-        <p className="text-sm text-[var(--muted-foreground)]">
+        <p className="text-sm text-muted-foreground">
           El cliente aún no ha seleccionado favoritas
         </p>
       </div>
@@ -58,13 +58,13 @@ export function SelectionsView({
       <div className="mb-6 flex gap-3">
         <button
           onClick={handleExportCSV}
-          className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm hover:border-[var(--accent)]"
+          className="rounded-lg border border-border px-4 py-2 text-sm hover:border-accent"
         >
           Exportar CSV
         </button>
         <button
           onClick={handleDownload}
-          className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--accent-foreground)] hover:opacity-90"
+          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
         >
           Descargar favoritas
         </button>
@@ -74,10 +74,10 @@ export function SelectionsView({
         {selections.map((s, i) => (
           <div
             key={s.id}
-            className="overflow-hidden rounded-lg border border-[var(--border)] ring-2 ring-[var(--accent)]"
+            className="overflow-hidden rounded-lg border border-border ring-2 ring-accent"
           >
             <div
-              className="aspect-square cursor-pointer bg-[var(--muted)]"
+              className="aspect-square cursor-pointer bg-muted"
               onClick={() => setLightboxIndex(i)}
             >
               {s.thumbnailKey && (
@@ -90,13 +90,13 @@ export function SelectionsView({
               )}
             </div>
             <div className="flex items-center justify-between p-2">
-              <p className="truncate text-xs text-[var(--muted-foreground)]">
+              <p className="truncate text-xs text-muted-foreground">
                 {s.filename}
               </p>
               <a
                 href={`/api/photo/${s.photoId}/download`}
                 download
-                className="shrink-0 ml-2 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                className="shrink-0 ml-2 text-xs text-muted-foreground hover:text-foreground"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V3" />

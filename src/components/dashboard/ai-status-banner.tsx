@@ -52,14 +52,14 @@ export function AiStatusBanner({
   const failed = status?.failed ?? 0;
 
   return (
-    <div className="mb-6 rounded-lg border border-[var(--border)] bg-[var(--muted)] px-4 py-3">
+    <div className="mb-6 rounded-lg border border-border bg-muted px-4 py-3">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent" />
-          <span className="text-sm text-[var(--muted-foreground)]">
+          <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+          <span className="text-sm text-muted-foreground">
             Analizando fotos con IA…{" "}
             {status && (
-              <span className="font-medium text-[var(--foreground)]">
+              <span className="font-medium text-foreground">
                 {analyzed} de {total}
               </span>
             )}
@@ -68,13 +68,13 @@ export function AiStatusBanner({
             <span className="text-xs text-red-500">{failed} con error</span>
           )}
         </div>
-        <span className="shrink-0 text-sm font-medium text-[var(--foreground)]">
+        <span className="shrink-0 text-sm font-medium text-foreground">
           {pct}%
         </span>
       </div>
-      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--border)]">
+      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-border">
         <div
-          className="h-full rounded-full bg-[var(--accent)] transition-all duration-500"
+          className="h-full rounded-full bg-accent transition-all duration-500"
           style={{ width: `${pct}%` }}
         />
       </div>

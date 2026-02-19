@@ -7,7 +7,7 @@ import type { User } from "next-auth";
 
 export function DashboardNav({ user }: { user: User }) {
   return (
-    <nav className="border-b border-[var(--border)] bg-[var(--background)]">
+    <nav className="border-b border-border bg-background">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-8">
           <Link href="/dashboard" className="text-lg font-semibold">
@@ -16,7 +16,7 @@ export function DashboardNav({ user }: { user: User }) {
           <div className="flex gap-4">
             <Link
               href="/dashboard"
-              className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+              className="text-sm text-muted-foreground hover:text-foreground"
             >
               Proyectos
             </Link>
@@ -37,7 +37,7 @@ export function DashboardNav({ user }: { user: User }) {
           </div>
           <button
             onClick={() => signOut({ callbackUrl: "/" })}
-            className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+            className="text-sm text-muted-foreground hover:text-foreground"
           >
             Salir
           </button>

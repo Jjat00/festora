@@ -54,17 +54,17 @@ export default async function GalleryPage({
     (project.selectionDeadline !== null && project.selectionDeadline < new Date());
 
   return (
-    <div className="min-h-screen bg-[var(--background)]">
-      <header className="border-b border-[var(--border)] px-4 py-6 text-center">
+    <div className="min-h-screen bg-background">
+      <header className="border-b border-border px-4 py-6 text-center">
         <h1 className="text-2xl font-semibold">{project.name}</h1>
-        <p className="text-sm text-[var(--muted-foreground)]">
+        <p className="text-sm text-muted-foreground">
           {project.clientName}
         </p>
       </header>
 
       <div className="mx-auto max-w-7xl px-4 py-6">
         <div className="mb-6 flex items-center justify-between">
-          <p className="text-sm text-[var(--muted-foreground)]">
+          <p className="text-sm text-muted-foreground">
             {project.photos.length} foto{project.photos.length !== 1 && "s"}
           </p>
           <p className="text-sm font-medium">

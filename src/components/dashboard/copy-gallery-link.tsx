@@ -23,7 +23,7 @@ export function CopyGalleryLink({
       <button
         type="button"
         onClick={handleCopy}
-        className="flex items-center gap-1.5 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -48,11 +48,11 @@ export function CopyGalleryLink({
     <button
       type="button"
       onClick={handleCopy}
-      className="rounded-lg border border-[var(--border)] p-4 text-left transition-colors hover:border-[var(--accent)] w-full"
+      className="rounded-lg border border-border p-4 text-left transition-colors hover:border-accent w-full"
     >
-      <p className="text-sm text-[var(--muted-foreground)]">Link de galería</p>
+      <p className="text-sm text-muted-foreground">Link de galería</p>
       <p className="truncate text-sm font-mono">{url}</p>
-      <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+      <p className="mt-1 text-xs text-muted-foreground">
         {copied ? "✓ Copiado" : "Toca para copiar"}
       </p>
     </button>

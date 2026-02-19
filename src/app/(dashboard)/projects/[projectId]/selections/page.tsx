@@ -34,7 +34,7 @@ export default async function SelectionsPage({
 
   return (
     <div>
-      <p className="mb-6 text-sm text-[var(--muted-foreground)]">
+      <p className="mb-6 text-sm text-muted-foreground">
         {selections.length} foto{selections.length !== 1 && "s"} seleccionada
         {selections.length !== 1 && "s"} de {project._count.photos}
       </p>

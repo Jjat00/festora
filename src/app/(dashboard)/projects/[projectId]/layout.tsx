@@ -57,14 +57,14 @@ export default async function ProjectLayout({
       <div className="mb-6">
         <Link
           href="/dashboard"
-          className="mb-3 inline-block text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+          className="mb-3 inline-block text-sm text-muted-foreground hover:text-foreground"
         >
           &larr; Proyectos
         </Link>
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold">{project.name}</h1>
-            <p className="text-sm text-[var(--muted-foreground)]">
+            <p className="text-sm text-muted-foreground">
               {project.clientName} &middot; {TYPE_LABELS[project.type]} &middot;{" "}
               {STATUS_LABELS[project.status]}
             </p>
@@ -73,22 +73,22 @@ export default async function ProjectLayout({
         </div>
 
         {/* Compact stats row */}
-        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-[var(--muted-foreground)]">
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
           <span>
-            <span className="font-medium text-[var(--foreground)]">
+            <span className="font-medium text-foreground">
               {project._count.photos}
             </span>{" "}
             foto{project._count.photos !== 1 ? "s" : ""}
           </span>
           <span aria-hidden>·</span>
           <span>
-            <span className="font-medium text-[var(--foreground)]">
+            <span className="font-medium text-foreground">
               {project._count.selections}
             </span>{" "}
             favorita{project._count.selections !== 1 ? "s" : ""}
           </span>
           <span aria-hidden>·</span>
-          <span className="font-medium text-[var(--foreground)]">
+          <span className="font-medium text-foreground">
             {formatBytes(projectSize)}
           </span>
           <span aria-hidden>·</span>

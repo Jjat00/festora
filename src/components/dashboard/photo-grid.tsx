@@ -68,13 +68,13 @@ function PhotoCard({
 
   return (
     <div
-      className={`group relative overflow-hidden rounded-lg border border-[var(--border)] transition-all ${
+      className={`group relative overflow-hidden rounded-lg border border-border transition-all ${
         isMasonry ? "mb-4 break-inside-avoid" : ""
       } ${
         isSelected
-          ? "ring-2 ring-[var(--foreground)]"
+          ? "ring-2 ring-foreground"
           : photo.selection
-            ? "ring-2 ring-[var(--accent)]"
+            ? "ring-2 ring-accent"
             : ""
       }`}
     >
@@ -90,7 +90,7 @@ function PhotoCard({
       >
         {/* Shimmer */}
         <div
-          className={`absolute inset-0 bg-[var(--muted)] transition-opacity duration-300 ${
+          className={`absolute inset-0 bg-muted transition-opacity duration-300 ${
             loaded ? "opacity-0" : "animate-pulse opacity-100"
           }`}
         />
@@ -112,13 +112,13 @@ function PhotoCard({
             <div
               className={`flex h-5 w-5 items-center justify-center rounded-full border-2 transition-colors ${
                 isSelected
-                  ? "border-[var(--foreground)] bg-[var(--foreground)]"
+                  ? "border-foreground bg-foreground"
                   : "border-white bg-black/40"
               }`}
             >
               {isSelected && (
                 <svg
-                  className="h-3 w-3 text-[var(--background)]"
+                  className="h-3 w-3 text-background"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -138,7 +138,7 @@ function PhotoCard({
 
       {/* Hover overlay with actions — hidden in selection mode */}
       {!isSelecting && (
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 p-2 opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 p-2 opacity-0 transition-opacity group-hover:opacity-100">
           <p className="truncate text-xs text-white">{photo.originalFilename}</p>
           <div className="mt-1 flex gap-3">
             <a
@@ -168,9 +168,9 @@ function PhotoCard({
 
       {/* Favorita indicator */}
       {photo.selection && !isSelecting && (
-        <div className="absolute right-2 top-2 rounded-full bg-[var(--accent)] p-1">
+        <div className="absolute right-2 top-2 rounded-full bg-accent p-1">
           <svg
-            className="h-3 w-3 text-[var(--accent-foreground)]"
+            className="h-3 w-3 text-accent-foreground"
             fill="currentColor"
             viewBox="0 0 20 20"
           >
@@ -266,7 +266,7 @@ export function PhotoGrid({
       <div className="mb-4 flex items-center justify-between">
         {isSelecting ? (
           <>
-            <span className="text-sm text-[var(--muted-foreground)]">
+            <span className="text-sm text-muted-foreground">
               {selectedIds.size > 0
                 ? `${selectedIds.size} seleccionada${selectedIds.size !== 1 ? "s" : ""}`
                 : "Toca fotos para seleccionar"}
@@ -275,14 +275,14 @@ export function PhotoGrid({
               {selectedIds.size < photos.length ? (
                 <button
                   onClick={() => setSelectedIds(new Set(photos.map((p) => p.id)))}
-                  className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                  className="text-sm text-muted-foreground hover:text-foreground"
                 >
                   Seleccionar todo
                 </button>
               ) : (
                 <button
                   onClick={() => setSelectedIds(new Set())}
-                  className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                  className="text-sm text-muted-foreground hover:text-foreground"
                 >
                   Deseleccionar todo
                 </button>
@@ -298,7 +298,7 @@ export function PhotoGrid({
               </button>
               <button
                 onClick={cancelSelection}
-                className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm hover:border-[var(--foreground)]"
+                className="rounded-lg border border-border px-3 py-1.5 text-sm hover:border-foreground"
               >
                 Cancelar
               </button>
@@ -319,8 +319,8 @@ export function PhotoGrid({
                     onClick={() => setSort(mode)}
                     className={`rounded-full px-3 py-1 text-xs transition-colors ${
                       sort === mode
-                        ? "bg-[var(--accent)] text-[var(--accent-foreground)]"
-                        : "bg-[var(--muted)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                        ? "bg-accent text-accent-foreground"
+                        : "bg-muted text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     {label}
@@ -330,7 +330,7 @@ export function PhotoGrid({
             )}
             <button
               onClick={() => setIsSelecting(true)}
-              className="ml-auto text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+              className="ml-auto text-sm text-muted-foreground hover:text-foreground"
             >
               Seleccionar
             </button>

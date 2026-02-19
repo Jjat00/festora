@@ -111,7 +111,7 @@ export function Lightbox({
         onTouchEnd={handleTouchEnd}
       >
         {/* Top bar */}
-        <div className="flex shrink-0 items-center justify-between bg-gradient-to-b from-black/70 to-transparent px-4 py-3">
+        <div className="flex shrink-0 items-center justify-between bg-linear-to-b from-black/70 to-transparent px-4 py-3">
           <div className="flex min-w-0 items-center gap-3">
             <span className="shrink-0 text-sm text-white/60">
               {index + 1} / {photos.length}
@@ -229,7 +229,7 @@ export function Lightbox({
         </div>
 
         {/* Bottom thumbnail filmstrip */}
-        <div className="shrink-0 bg-gradient-to-t from-black/70 to-transparent px-4 pb-4 pt-2">
+        <div className="shrink-0 bg-linear-to-t from-black/70 to-transparent px-4 pb-4 pt-2">
           <div className="mx-auto flex h-14 items-center justify-center gap-1">
             {visibleThumbs.map((p) => {
               const realIndex = photos.indexOf(p);

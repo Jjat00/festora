@@ -51,7 +51,7 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
   }
 
   const inputClass =
-    "w-full rounded-lg border border-[var(--border)] bg-transparent px-3 py-2 text-sm outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]";
+    "w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent";
   const labelClass = "mb-1 block text-sm font-medium";
 
   return (
@@ -136,7 +136,7 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
               setTimeout(() => setCopied(false), 2000);
             });
           }}
-          className="flex items-center gap-2 text-sm font-mono text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+          className="flex items-center gap-2 text-sm font-mono text-muted-foreground hover:text-foreground transition-colors"
         >
           /g/{project.slug}
           <span className="text-xs">
@@ -149,7 +149,7 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
         <div>
           <label htmlFor="pin" className={labelClass}>
             PIN de acceso{" "}
-            <span className="text-[var(--muted-foreground)]">(dejar vacío para quitar)</span>
+            <span className="text-muted-foreground">(dejar vacío para quitar)</span>
           </label>
           <input
             id="pin"
@@ -181,7 +181,7 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
       <button
         type="submit"
         disabled={loading}
-        className="w-full rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-[var(--accent-foreground)] hover:opacity-90 disabled:opacity-50"
+        className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground hover:opacity-90 disabled:opacity-50"
       >
         {loading ? "Guardando..." : "Guardar cambios"}
       </button>

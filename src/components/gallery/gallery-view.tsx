@@ -36,7 +36,7 @@ function PhotoCard({
     <div
       className={`group relative mb-4 break-inside-avoid cursor-zoom-in overflow-hidden rounded-lg transition-all ${
         photo.selected
-          ? "ring-2 ring-[var(--accent)] ring-offset-2 ring-offset-[var(--background)]"
+          ? "ring-2 ring-accent ring-offset-2 ring-offset-background"
           : ""
       }`}
       onClick={() => onOpen(index)}
@@ -45,7 +45,7 @@ function PhotoCard({
       <div className="relative w-full overflow-hidden rounded-lg" style={{ aspectRatio: ratio }}>
         {/* Shimmer placeholder — se oculta con opacity cuando carga la imagen */}
         <div
-          className={`absolute inset-0 bg-[var(--muted)] transition-opacity duration-300 ${
+          className={`absolute inset-0 bg-muted transition-opacity duration-300 ${
             loaded ? "opacity-0" : "animate-pulse opacity-100"
           }`}
         />
@@ -73,7 +73,7 @@ function PhotoCard({
         disabled={isLocked || isPending}
         className={`absolute right-2 top-2 rounded-full p-1.5 backdrop-blur-sm transition-all ${
           photo.selected
-            ? "bg-[var(--accent)] text-[var(--accent-foreground)]"
+            ? "bg-accent text-accent-foreground"
             : "bg-black/40 text-white/70 opacity-0 group-hover:opacity-100 hover:bg-black/60 hover:text-white"
         } ${isLocked ? "cursor-default" : "cursor-pointer"}`}
         aria-label={photo.selected ? "Quitar de favoritas" : "Agregar a favoritas"}
@@ -129,8 +129,8 @@ export function GalleryView({
   return (
     <div>
       {/* Contador sticky de favoritas */}
-      <div className="sticky top-0 z-10 mb-6 flex items-center justify-center bg-[var(--background)]/90 py-3 backdrop-blur-sm">
-        <div className="rounded-full bg-[var(--accent)] px-4 py-1.5 text-sm font-medium text-[var(--accent-foreground)]">
+      <div className="sticky top-0 z-10 mb-6 flex items-center justify-center bg-background/90 py-3 backdrop-blur-sm">
+        <div className="rounded-full bg-accent px-4 py-1.5 text-sm font-medium text-accent-foreground">
           {total} favorita{total !== 1 && "s"}
         </div>
       </div>

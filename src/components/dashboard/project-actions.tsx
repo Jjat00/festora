@@ -56,7 +56,7 @@ export function ProjectActions({
         <button
           onClick={handleLock}
           disabled={loading}
-          className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm hover:border-yellow-500 hover:text-yellow-500 disabled:opacity-50"
+          className="rounded-lg border border-border px-3 py-1.5 text-sm hover:border-yellow-500 hover:text-yellow-500 disabled:opacity-50"
         >
           Bloquear
         </button>
@@ -65,7 +65,7 @@ export function ProjectActions({
         <button
           onClick={handleUnlock}
           disabled={loading}
-          className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm hover:border-green-500 hover:text-green-500 disabled:opacity-50"
+          className="rounded-lg border border-border px-3 py-1.5 text-sm hover:border-green-500 hover:text-green-500 disabled:opacity-50"
         >
           Desbloquear
         </button>
@@ -73,7 +73,7 @@ export function ProjectActions({
       <button
         onClick={handleDelete}
         disabled={loading}
-        className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm hover:border-red-500 hover:text-red-500 disabled:opacity-50"
+        className="rounded-lg border border-border px-3 py-1.5 text-sm hover:border-red-500 hover:text-red-500 disabled:opacity-50"
       >
         Eliminar
       </button>
