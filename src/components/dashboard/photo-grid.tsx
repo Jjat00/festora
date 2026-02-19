@@ -1,12 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { deletePhoto, deletePhotos } from "@/lib/actions/photo-actions";
 import { Lightbox } from "@/components/lightbox";
-import type { Photo } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 
-type PhotoWithSelection = Photo & { selection: { id: string } | null };
+type PhotoWithSelection = Prisma.PhotoGetPayload<{
+  include: { selection: { select: { id: true } } };
+}> & {
+  aiStatus?: "PENDING" | "QUEUED" | "DONE" | "FAILED";
+  compositeScore?: number | null;
+};
 type SortMode = "order" | "quality";
 
 function AiBadge({ photo }: { photo: PhotoWithSelection }) {
@@ -21,7 +26,7 @@ function AiBadge({ photo }: { photo: PhotoWithSelection }) {
   // Solo badge positivo — "★ Destacada" si el composite score es alto.
   // Evitamos badges negativos de blur que generan falsos positivos con bokeh.
   const isGreat =
-    photo.compositeScore !== null && photo.compositeScore >= 65;
+    photo.compositeScore != null && photo.compositeScore >= 65;
 
   if (!isGreat) return null;
 
@@ -56,17 +61,10 @@ function PhotoCard({
   onDelete: (id: string) => void;
 }) {
   const [loaded, setLoaded] = useState(false);
-  const imgRef = useRef<HTMLImageElement>(null);
   const ratio =
     isMasonry && photo.width && photo.height
       ? `${photo.width} / ${photo.height}`
       : "1 / 1";
-
-  // On SSR hydration, onLoad can fire before React attaches the handler
-  // (image already in browser cache). Check img.complete after mount.
-  useEffect(() => {
-    if (imgRef.current?.complete) setLoaded(true);
-  }, []);
 
   return (
     <div
@@ -102,7 +100,7 @@ function PhotoCard({
           className={`absolute inset-0 h-full w-full object-cover brightness-90 transition-all duration-500 will-change-auto group-hover:brightness-100 ${
             loaded ? "opacity-100" : "opacity-0"
           }`}
-          ref={imgRef}
+          ref={(node) => { if (node?.complete) setLoaded(true); }}
           style={{ transform: "translate3d(0, 0, 0)" }}
           loading="lazy"
           onLoad={() => setLoaded(true)}

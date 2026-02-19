@@ -21,7 +21,9 @@ export default async function PhotosPage({
   ]);
 
   const processingCount = photos.filter(
-    (p) => p.aiStatus === "PENDING" || p.aiStatus === "QUEUED",
+    (p) =>
+      (p as unknown as { aiStatus: string }).aiStatus === "PENDING" ||
+      (p as unknown as { aiStatus: string }).aiStatus === "QUEUED",
   ).length;
 
   return (
