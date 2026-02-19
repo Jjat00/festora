@@ -6,6 +6,7 @@ import { deleteObject, deleteObjects } from "@/lib/r2";
 import { DEFAULT_STORAGE_LIMIT } from "@/lib/constants";
 import type { ConfirmUploadInput } from "@/lib/types";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { dispatchPhotoAnalysis } from "@/lib/vision/analysis-actions";
 
 async function getAuthenticatedUserId(): Promise<string> {
@@ -70,9 +71,13 @@ export async function confirmUpload(
 
   revalidatePath(`/projects/${projectId}/photos`);
 
-  // Fire-and-forget: iniciar análisis AI sin bloquear la respuesta al cliente.
-  void dispatchPhotoAnalysis(
-    photos.map((p) => ({ id: p.id, objectKey: p.objectKey, thumbnailKey: p.thumbnailKey }))
+  // Iniciar análisis AI después de responder al cliente.
+  // `after()` mantiene la función Vercel viva hasta que dispatchPhotoAnalysis termine,
+  // sin bloquear la respuesta. `void` sin after() es insuficiente en Vercel serverless.
+  after(() =>
+    dispatchPhotoAnalysis(
+      photos.map((p) => ({ id: p.id, objectKey: p.objectKey, thumbnailKey: p.thumbnailKey }))
+    )
   );
 
   return { photos };
