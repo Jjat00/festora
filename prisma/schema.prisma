@@ -108,7 +108,7 @@ model Photo {
   emotionValence  Float?    // Valencia: -1 (negativa) a +1 (positiva). Null = sin rostro.
 
   // Fase 3.5: análisis LLM (Claude, GPT, Gemini)
-  llmScore            Int?      // Score 1-10 del LLM.
+  llmScore            Float?    // Score 1.0-10.0 del LLM (1 decimal).
   llmModel            String?   // Modelo usado: e.g. "claude-sonnet-4-6".
   llmSummary          String?   // Frase de resumen generada por el LLM.
   llmDiscardReason    String?   // Razón de descarte (null = foto ok).

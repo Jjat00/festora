@@ -72,7 +72,7 @@ function LlmScoreBadge({ photo }: { photo: PhotoWithSelection }) {
               ? "bg-yellow-600/80 text-white"
               : "bg-black/60 text-white/80"
       }`}>
-        {photo.llmScore}/10
+        {photo.llmScore.toFixed(1)}/10
       </span>
     </div>
   );

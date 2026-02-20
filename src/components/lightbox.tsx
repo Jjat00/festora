@@ -250,7 +250,7 @@ export function Lightbox({
                           ? "bg-green-500/20 text-green-400"
                           : "bg-white/10 text-white/60"
                     }`}>
-                      {photo.llmScore}/10
+                      {photo.llmScore.toFixed(1)}/10
                     </span>
                   )}
                   {photo.llmDiscardReason && (
