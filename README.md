@@ -86,3 +86,7 @@ Abre [http://localhost:3000](http://localhost:3000).
 | `docker compose down` | Detener base de datos |
 | `npx prisma migrate dev` | Ejecutar migraciones |
 | `npx prisma studio` | UI para explorar la base de datos |
+
+---
+
+> Nota: Este README fue actualizado desde OpenClaw.
