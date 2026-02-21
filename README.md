@@ -119,8 +119,5 @@ Las API keys de los proveedores LLM (Anthropic, OpenAI, Gemini) se configuran en
 ### Funcionalidades IA del dashboard
 
 - **Análisis técnico**: detecta blur, calidad y emociones. Se dispara manualmente por proyecto.
-- **Análisis LLM**: evaluación narrativa con IA multimodal. Soporta:
-  - Claude Sonnet 4.6 (~$0.006/foto)
-  - GPT-4.1 (~$0.008/foto)
-  - Gemini 2.0 Flash (~$0.001/foto)
+- **Análisis LLM**: evaluación narrativa con IA multimodal. Usa GPT-4.1 (~$0.008/foto).
 - Los resultados incluyen score 1-10, composición, calidad de pose, puntos fuertes/débiles y resumen.

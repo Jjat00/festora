@@ -4,9 +4,7 @@ import { useState } from "react";
 import { triggerLlmAnalysis, type LlmModel, type LlmPhotoFilter } from "@/lib/actions/photo-actions";
 
 const MODELS: { id: LlmModel; label: string; pricePerPhoto: number }[] = [
-  { id: "anthropic/claude-sonnet-4-6", label: "Claude Sonnet 4.6", pricePerPhoto: 0.006 },
-  { id: "openai/gpt-4.1",             label: "GPT-4.1",             pricePerPhoto: 0.008 },
-  { id: "gemini/gemini-2.0-flash",    label: "Gemini 2.0 Flash",    pricePerPhoto: 0.001 },
+  { id: "openai/gpt-4.1", label: "GPT-4.1", pricePerPhoto: 0.008 },
 ];
 
 const FILTERS: { id: LlmPhotoFilter; label: string; description: string }[] = [

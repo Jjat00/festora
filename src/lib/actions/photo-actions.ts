@@ -162,10 +162,7 @@ export async function triggerProjectAnalysis(projectId: string): Promise<{ queue
   return { queued: photos.length };
 }
 
-export type LlmModel =
-  | "anthropic/claude-sonnet-4-6"
-  | "openai/gpt-4.1"
-  | "gemini/gemini-2.0-flash";
+export type LlmModel = "openai/gpt-4.1";
 
 export type LlmPhotoFilter = "highlighted" | "manual" | "all";
 
