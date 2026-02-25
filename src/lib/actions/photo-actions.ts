@@ -7,7 +7,7 @@ import { DEFAULT_STORAGE_LIMIT } from "@/lib/constants";
 import type { ConfirmUploadInput } from "@/lib/types";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
-import { dispatchPhotoAnalysis } from "@/lib/actions/ai-actions";
+import { dispatchPhotoAnalysis, generateAlbumSuggestions } from "@/lib/actions/ai-actions";
 
 async function getAuthenticatedUserId(): Promise<string> {
   const session = await auth();
@@ -160,6 +160,25 @@ export async function triggerProjectAnalysis(projectId: string): Promise<{ queue
 
   revalidatePath(`/projects/${projectId}/photos`);
   return { queued: photos.length };
+}
+
+/**
+ * Genera álbumes sugeridos a partir de las categorías de IA.
+ * Requiere que las fotos ya hayan sido analizadas.
+ */
+export async function triggerAlbumGeneration(projectId: string): Promise<{ albums: number }> {
+  const userId = await getAuthenticatedUserId();
+
+  const project = await prisma.project.findUnique({
+    where: { id: projectId, userId },
+    select: { id: true },
+  });
+  if (!project) throw new Error("Project not found");
+
+  const result = await generateAlbumSuggestions(projectId);
+
+  revalidatePath(`/projects/${projectId}/albums`);
+  return result;
 }
 
 export async function getProjectPhotos(projectId: string) {

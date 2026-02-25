@@ -2,6 +2,9 @@
 
 import { prisma } from "@/lib/prisma";
 import { getSignedReadUrl } from "@/lib/r2";
+import { generateText, Output } from "ai";
+import { z } from "zod";
+import { getAnalysisModel } from "@/lib/ai/provider";
 import { analyzeAllPhotos, type PhotoInput } from "@/lib/ai/analyze";
 import type { PhotoAnalysis } from "@/lib/ai/schemas";
 
@@ -200,4 +203,118 @@ async function markBatchFailed(photoIds: string[]): Promise<void> {
     where: { id: { in: photoIds } },
     data: { aiStatus: "FAILED", aiProcessedAt: new Date() },
   });
+}
+
+// ------------------------------------------------------------------ //
+// Fase 3 — Album suggestions
+// ------------------------------------------------------------------ //
+
+const CATEGORY_LABELS: Record<string, string> = {
+  preparativos: "Preparativos",
+  ceremonia: "Ceremonia",
+  retratos: "Retratos",
+  pareja: "Pareja",
+  grupo: "Grupo",
+  familia: "Familia",
+  ninos: "Niños",
+  mascotas: "Mascotas",
+  recepcion: "Recepción",
+  fiesta: "Fiesta",
+  comida: "Comida",
+  decoracion: "Decoración",
+  detalles: "Detalles",
+  exterior: "Exterior",
+  arquitectura: "Arquitectura",
+  producto: "Producto",
+  deportes: "Deportes",
+  otro: "Otros",
+};
+
+const albumNameSchema = z.object({
+  category: z.string(),
+  name: z.string().describe("Nombre descriptivo y bonito para el álbum en español"),
+});
+
+/**
+ * Genera álbumes sugeridos a partir de las categorías detectadas en las fotos.
+ * Elimina las sugerencias anteriores y crea nuevas.
+ */
+export async function generateAlbumSuggestions(
+  projectId: string
+): Promise<{ albums: number }> {
+  // Agrupar fotos por categoría
+  const groups = await prisma.photo.groupBy({
+    by: ["llmCategory"],
+    where: { projectId, llmCategory: { not: null } },
+    _count: true,
+    orderBy: { _count: { llmCategory: "desc" } },
+  });
+
+  if (groups.length === 0) return { albums: 0 };
+
+  // Obtener el tipo de proyecto para contexto
+  const project = await prisma.project.findUniqueOrThrow({
+    where: { id: projectId },
+    select: { type: true, name: true },
+  });
+
+  const TYPE_LABELS: Record<string, string> = {
+    WEDDING: "boda", QUINCEANERA: "XV años", GRADUATION: "graduación",
+    PORTRAIT: "sesión de retratos", CASUAL: "sesión casual",
+    CORPORATE: "evento corporativo", PRODUCT: "sesión de producto", OTHER: "evento",
+  };
+  const projectType = TYPE_LABELS[project.type] ?? "evento";
+
+  const categories = groups.map((g) => g.llmCategory!);
+
+  // Generar nombres descriptivos con LLM
+  const { output } = await generateText({
+    model: getAnalysisModel(),
+    output: Output.array({ element: albumNameSchema }),
+    prompt: `Genera nombres de álbum creativos y descriptivos en español para una ${projectType} llamada "${project.name}".
+
+Categorías (usa exactamente estos valores en "category"):
+${categories.map((c) => `- ${c} (${CATEGORY_LABELS[c] ?? c})`).join("\n")}
+
+El nombre debe ser evocador y bonito, no genérico. Ejemplos:
+- ceremonia → "El Sí, Acepto"
+- preparativos → "Antes del Gran Momento"
+- fiesta → "¡A Celebrar!"
+- retratos → "Momentos Especiales"`,
+    maxOutputTokens: 50 * categories.length,
+    temperature: 0.8,
+  });
+
+  // Obtener la mejor foto por categoría (cover photo)
+  const coverPhotos = await prisma.photo.findMany({
+    where: { projectId, llmCategory: { in: categories } },
+    orderBy: { compositeScore: "desc" },
+    select: { id: true, llmCategory: true },
+  });
+
+  const coverByCategory = new Map<string, string>();
+  for (const photo of coverPhotos) {
+    if (photo.llmCategory && !coverByCategory.has(photo.llmCategory)) {
+      coverByCategory.set(photo.llmCategory, photo.id);
+    }
+  }
+
+  // Crear mapa de nombres generados
+  const nameMap = new Map((output ?? []).map((a) => [a.category, a.name]));
+
+  // Eliminar sugerencias anteriores
+  await prisma.albumSuggestion.deleteMany({ where: { projectId } });
+
+  // Crear nuevas sugerencias
+  await prisma.albumSuggestion.createMany({
+    data: groups.map((g) => ({
+      projectId,
+      category: g.llmCategory!,
+      name: nameMap.get(g.llmCategory!) ?? CATEGORY_LABELS[g.llmCategory!] ?? g.llmCategory!,
+      coverPhotoId: coverByCategory.get(g.llmCategory!) ?? null,
+      photoCount: g._count,
+    })),
+  });
+
+  return { albums: groups.length };
 }

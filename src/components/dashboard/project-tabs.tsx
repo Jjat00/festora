@@ -10,6 +10,11 @@ const TABS = [
     href: (id: string) => `/projects/${id}/photos`,
   },
   {
+    label: "Álbumes",
+    segment: "albums",
+    href: (id: string) => `/projects/${id}/albums`,
+  },
+  {
     label: "Favoritas",
     segment: "selections",
     href: (id: string) => `/projects/${id}/selections`,
