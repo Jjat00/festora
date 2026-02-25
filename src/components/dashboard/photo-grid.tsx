@@ -607,6 +607,7 @@ export function PhotoGrid({
           photos={sorted.map((p) => ({
             id: p.id,
             filename: p.originalFilename,
+            selected: favorites.has(p.id),
             compositeScore: p.compositeScore,
             blurScore: p.blurScore,
             emotionLabel: p.emotionLabel,
@@ -623,6 +624,7 @@ export function PhotoGrid({
           }))}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
+          onToggleSelection={handleFavoriteToggle}
           showDownload
         />
       )}

@@ -324,6 +324,7 @@ export function GalleryView({
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
           onToggleSelection={isLocked ? undefined : handleToggle}
+          showDownload
         />
       )}
 
