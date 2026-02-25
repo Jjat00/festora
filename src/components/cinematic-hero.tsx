@@ -2,20 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { motion, useAnimate } from "framer-motion";
-import { DynamicFocusBackground } from "@/components/dynamic-focus-background";
+import Particles from "@/components/particles";
 
 export function CinematicHero({ children }: { children: React.ReactNode }) {
   const [scope, animate] = useAnimate();
   const [isFocusing, setIsFocusing] = useState(true);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     let mounted = true;
 
     const playSequence = async () => {
-      // 1. Start slightly out of focus and zoomed
-      // 2. Slow zoom in
+      // 1. Start UI and Background slightly out of focus and zoomed
       animate(
-        "#bg-image",
+        "#ui-layer, #particles-layer",
         { scale: [1.15, 1.05], filter: ["blur(12px)", "blur(6px)"] },
         { duration: 1.0, ease: "easeInOut" },
       );
@@ -25,7 +25,7 @@ export function CinematicHero({ children }: { children: React.ReactNode }) {
 
       // 3. Focus sharpens
       await animate(
-        "#bg-image",
+        "#ui-layer, #particles-layer",
         { filter: "blur(0px)" },
         { duration: 0.4, ease: "easeOut" },
       );
@@ -33,7 +33,7 @@ export function CinematicHero({ children }: { children: React.ReactNode }) {
 
       // 4. Lens micro-adjustment
       await animate(
-        "#bg-image",
+        "#ui-layer, #particles-layer",
         {
           filter: ["blur(0px)", "blur(3px)", "blur(0px)"],
           scale: [1.05, 1.055, 1.05],
@@ -49,26 +49,18 @@ export function CinematicHero({ children }: { children: React.ReactNode }) {
       await new Promise((r) => setTimeout(r, 50));
       if (!mounted) return;
 
-      // 5. Flash (Visual only, no audio to avoid autoplay permission issues)
+      // 5. Flash (Visual only)
       animate(
         "#flash",
         { opacity: [0, 1, 0] },
         { duration: 0.3, times: [0, 0.1, 1], ease: "easeOut" },
       );
 
-      // Hide the background image and reveal the particles layer right at the peak of the flash
-      animate("#bg-image", { opacity: 0 }, { duration: 0.1, delay: 0.05 });
+      // Settle UI and background scale to 1 smoothly
       animate(
-        "#particles-layer",
-        { opacity: 1 },
-        { duration: 0.3, delay: 0.1 },
-      );
-
-      // 6. Reveal the UI layer
-      animate(
-        "#ui-layer",
-        { opacity: [0, 1], y: [10, 0] },
-        { duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.1 },
+        "#ui-layer, #particles-layer",
+        { scale: 1 },
+        { duration: 0.8, ease: [0.16, 1, 0.3, 1] },
       );
 
       // 8. Subtle shutter frame closing effect / UI feedback
@@ -86,32 +78,35 @@ export function CinematicHero({ children }: { children: React.ReactNode }) {
     };
   }, [animate]);
 
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMousePos({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    });
+  };
+
   return (
     <div
       ref={scope}
+      onMouseMove={handleMouseMove}
       className="relative w-full min-h-svh overflow-hidden bg-[#050505]"
     >
-      {/* Background Image (Disappears after flash) */}
-      <motion.div
-        id="bg-image"
-        className="absolute inset-0 z-10 bg-cover bg-center bg-no-repeat"
+      {/* Spotlight Effect that follows the mouse */}
+      <div 
+        className="pointer-events-none absolute inset-0 z-10 transition-opacity duration-300"
         style={{
-          backgroundImage:
-            // "url('https://images.unsplash.com/photo-1516724562728-afc824a36e84?fm=jpg&q=60&w=3000&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MXx8Y2FtZXJhJTIwd2FsbHBhcGVyfGVufDB8fDB8fHww')",
-            "url('https://img.freepik.com/free-photo/artists-doing-touch-ups-model_53876-139545.jpg?semt=ais_user_personalization&w=740&q=80')",
-          filter: "blur(12px)",
-          scale: 1.15,
+          background: `radial-gradient(600px circle at ${mousePos.x}px ${mousePos.y}px, rgba(255,255,255,0.06), transparent 40%)`
         }}
-      >
-        <div className="absolute inset-0 bg-black/40" />
-      </motion.div>
+      />
 
-      {/* Dynamic Focus Layer (Revealed after flash) */}
+      {/* Abstract Animated Background */}
       <motion.div
         id="particles-layer"
-        className="absolute inset-0 z-0 opacity-0"
+        className="absolute inset-0 z-0"
+        initial={{ filter: "blur(12px)", scale: 1.15 }}
       >
-        <DynamicFocusBackground />
+        <Particles />
       </motion.div>
 
       {/* Flash Overlay */}
@@ -159,11 +154,11 @@ export function CinematicHero({ children }: { children: React.ReactNode }) {
         </div>
       </motion.div>
 
-      {/* Actual Hero Content Layer (hidden until captured) */}
+      {/* Actual Hero Content Layer */}
       <motion.div
         id="ui-layer"
         className="relative z-30 flex flex-col min-h-svh"
-        initial={{ opacity: 0 }}
+        initial={{ filter: "blur(12px)", scale: 1.15 }}
       >
         {children}
       </motion.div>
