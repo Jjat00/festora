@@ -39,7 +39,7 @@ export const photoAnalysisSchema = z.object({
   discardReason: z
     .string()
     .nullable()
-    .describe("Razón para descartar la foto. null si es buena"),
+    .describe("Razón técnica para descartar (borrosa, ojos cerrados, muy oscura, cortada, etc). null si la foto es técnicamente aceptable. NUNCA descartar por categoría o tipo de escena"),
   bestInGroup: z.boolean().describe("¿Sería la mejor foto de una serie similar?"),
   highlights: z.array(z.string()).describe("Puntos fuertes: iluminación, sonrisa, composición..."),
   issues: z.array(z.string()).describe("Problemas: ojos cerrados, desenfoque, fondo sucio..."),
@@ -65,7 +65,7 @@ export const photoAnalysisSchema = z.object({
       "deportes",
       "otro",
     ])
-    .describe("Categoría de la foto. Usa EXACTAMENTE uno de los valores permitidos"),
+    .describe("Categoría según sujeto y encuadre. 1 persona=retratos (NUNCA grupo). Plano abierto con paisaje dominante=exterior. Contar personas antes de elegir"),
   tags: z
     .array(z.string())
     .describe("Tags descriptivos: novia, novio, grupo, primer-baile, ramo, anillos, etc."),

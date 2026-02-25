@@ -252,18 +252,10 @@ export async function generateAlbumSuggestions(
 
   if (groups.length === 0) return { albums: 0 };
 
-  // Obtener el tipo de proyecto para contexto
   const project = await prisma.project.findUniqueOrThrow({
     where: { id: projectId },
-    select: { type: true, name: true },
+    select: { name: true },
   });
-
-  const TYPE_LABELS: Record<string, string> = {
-    WEDDING: "boda", QUINCEANERA: "XV años", GRADUATION: "graduación",
-    PORTRAIT: "sesión de retratos", CASUAL: "sesión casual",
-    CORPORATE: "evento corporativo", PRODUCT: "sesión de producto", OTHER: "evento",
-  };
-  const projectType = TYPE_LABELS[project.type] ?? "evento";
 
   const categories = groups.map((g) => g.llmCategory!);
 
@@ -271,7 +263,7 @@ export async function generateAlbumSuggestions(
   const { output } = await generateText({
     model: getAnalysisModel(),
     output: Output.array({ element: albumNameSchema }),
-    prompt: `Genera nombres de álbum creativos y descriptivos en español para una ${projectType} llamada "${project.name}".
+    prompt: `Genera nombres de álbum creativos y descriptivos en español para el proyecto "${project.name}".
 
 Categorías (usa exactamente estos valores en "category"):
 ${categories.map((c) => `- ${c} (${CATEGORY_LABELS[c] ?? c})`).join("\n")}
@@ -280,7 +272,9 @@ El nombre debe ser evocador y bonito, no genérico. Ejemplos:
 - ceremonia → "El Sí, Acepto"
 - preparativos → "Antes del Gran Momento"
 - fiesta → "¡A Celebrar!"
-- retratos → "Momentos Especiales"`,
+- retratos → "Momentos Especiales"
+- exterior → "Bajo el Cielo Abierto"
+- grupo → "Todos Juntos"`,
     maxOutputTokens: 50 * categories.length,
     temperature: 0.8,
   });

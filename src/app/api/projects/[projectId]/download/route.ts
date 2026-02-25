@@ -26,21 +26,28 @@ export async function GET(
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
 
-  const photos =
-    type === "favorites"
-      ? await prisma.photo.findMany({
-          where: {
-            projectId,
-            selection: { isNot: null },
-          },
-          select: { objectKey: true, originalFilename: true },
-          orderBy: { order: "asc" },
-        })
-      : await prisma.photo.findMany({
-          where: { projectId },
-          select: { objectKey: true, originalFilename: true },
-          orderBy: { order: "asc" },
-        });
+  const category = req.nextUrl.searchParams.get("category");
+
+  let photos;
+  if (type === "album" && category) {
+    photos = await prisma.photo.findMany({
+      where: { projectId, llmCategory: category },
+      select: { objectKey: true, originalFilename: true },
+      orderBy: { compositeScore: "desc" },
+    });
+  } else if (type === "favorites") {
+    photos = await prisma.photo.findMany({
+      where: { projectId, selection: { isNot: null } },
+      select: { objectKey: true, originalFilename: true },
+      orderBy: { order: "asc" },
+    });
+  } else {
+    photos = await prisma.photo.findMany({
+      where: { projectId },
+      select: { objectKey: true, originalFilename: true },
+      orderBy: { order: "asc" },
+    });
+  }
 
   if (photos.length === 0) {
     return NextResponse.json(
@@ -111,9 +118,12 @@ export async function GET(
   });
 
   const safeName = project.name.replace(/[^a-zA-Z0-9_\- ]/g, "");
-  const filename = type === "favorites"
-    ? `${safeName}-favoritas.zip`
-    : `${safeName}.zip`;
+  const filename =
+    type === "album" && category
+      ? `${safeName}-${category}.zip`
+      : type === "favorites"
+        ? `${safeName}-favoritas.zip`
+        : `${safeName}.zip`;
 
   return new NextResponse(webStream, {
     headers: {

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { triggerAlbumGeneration } from "@/lib/actions/photo-actions";
 import type { AlbumSuggestion } from "@prisma/client";
 
@@ -129,8 +130,9 @@ export function AlbumGrid({
       {/* Album cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {albums.map((album) => (
-          <div
+          <Link
             key={album.id}
+            href={`/projects/${projectId}/albums/${album.id}`}
             className="group overflow-hidden rounded-xl border border-border transition-colors hover:border-muted-foreground"
           >
             {/* Cover photo */}
@@ -161,7 +163,7 @@ export function AlbumGrid({
                 {CATEGORY_LABELS[album.category] ?? album.category}
               </p>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
     </div>
