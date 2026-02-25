@@ -625,6 +625,7 @@ export function PhotoGrid({
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
           onToggleSelection={handleFavoriteToggle}
+          onDelete={handleDelete}
           showDownload
         />
       )}
