@@ -22,6 +22,9 @@ export default async function GalleryPage({
       pin: true,
       status: true,
       selectionDeadline: true,
+      coverPhrase: true,
+      coverKey: true,
+      user: { select: { name: true } },
       photos: {
         select: {
           id: true,
@@ -55,17 +58,49 @@ export default async function GalleryPage({
     project.status === "LOCKED" ||
     (project.selectionDeadline !== null && project.selectionDeadline < new Date());
 
+  const coverPhoto = project.photos.find(p => p.thumbnailKey === project.coverKey) || project.photos[0];
+
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border px-4 py-6 text-center">
-        <h1 className="text-2xl font-semibold">{project.name}</h1>
-        <p className="text-sm text-muted-foreground">
-          {project.clientName}
-        </p>
-      </header>
+      {/* Hero Section */}
+      <div className="relative flex h-[60vh] min-h-[400px] w-full flex-col items-center justify-center overflow-hidden">
+        {coverPhoto ? (
+          <div className="absolute inset-0 z-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`/api/photo/${coverPhoto.id}/view`}
+              alt="Portada de galería"
+              className="h-full w-full object-cover"
+            />
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          </div>
+        ) : (
+          <div className="absolute inset-0 z-0 bg-zinc-900" />
+        )}
 
-      <div className="mx-auto max-w-7xl px-4 py-6">
-        <div className="mb-6 flex items-center justify-between">
+        <div className="relative z-10 flex flex-col items-center px-4 text-center">
+          <h1 className="mb-2 text-4xl font-light tracking-tight text-white md:text-6xl">
+            {project.name}
+          </h1>
+          <p className="mb-8 text-lg font-light uppercase tracking-widest text-white/80 md:text-xl">
+            {project.user.name || "Fotógrafo"}
+          </p>
+
+          {project.coverPhrase && (
+            <div className="mx-auto mt-4 max-w-2xl">
+              <p className="font-serif text-xl italic text-white/90 md:text-2xl">
+                "{project.coverPhrase}"
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Decorative gradient overlay at bottom */}
+        <div className="absolute bottom-0 left-0 right-0 z-10 h-32 bg-linear-to-t from-background to-transparent" />
+      </div>
+
+      <div className="mx-auto max-w-7xl px-4 py-8">
+        <div className="mb-8 flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
             {project.photos.length} foto{project.photos.length !== 1 && "s"}
           </p>

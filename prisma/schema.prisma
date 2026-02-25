@@ -67,6 +67,7 @@ model Project {
   slug              String        @unique
   pin               String?
   coverKey          String?
+  coverPhrase       String?
   status            ProjectStatus @default(ACTIVE)
   selectionDeadline DateTime?
   user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)

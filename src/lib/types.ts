@@ -19,6 +19,7 @@ export interface UpdateProjectInput {
   pin?: string | null;
   slug?: string;
   coverKey?: string;
+  coverPhrase?: string | null;
   status?: ProjectStatus;
   selectionDeadline?: Date | null;
 }

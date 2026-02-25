@@ -37,6 +37,7 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
         type: formData.get("type") as ProjectType,
         date: new Date(formData.get("date") as string),
         pin: (formData.get("pin") as string) || null,
+        coverPhrase: (formData.get("coverPhrase") as string) || null,
         selectionDeadline: formData.get("selectionDeadline")
           ? new Date(formData.get("selectionDeadline") as string)
           : null,
@@ -176,6 +177,23 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
             className={inputClass}
           />
         </div>
+      </div>
+
+      <div>
+        <label htmlFor="coverPhrase" className={labelClass}>
+          Frase de portada <span className="text-muted-foreground">(opcional)</span>
+        </label>
+        <textarea
+          id="coverPhrase"
+          name="coverPhrase"
+          rows={3}
+          placeholder="Ej: Para siempre y por siempre..."
+          defaultValue={project.coverPhrase || ""}
+          className={`${inputClass} resize-none`}
+        />
+        <p className="mt-1 text-xs text-muted-foreground">
+          Esta frase aparecerá sobre la imagen principal al abrir la galería.
+        </p>
       </div>
 
       <button
