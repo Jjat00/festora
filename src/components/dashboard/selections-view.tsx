@@ -8,6 +8,8 @@ interface SelectionItem {
   photoId: string;
   filename: string;
   thumbnailKey: string | null;
+  width: number | null;
+  height: number | null;
 }
 
 export function SelectionsView({
@@ -70,41 +72,55 @@ export function SelectionsView({
         </button>
       </div>
 
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
-        {selections.map((s, i) => (
-          <div
-            key={s.id}
-            className="overflow-hidden rounded-lg border border-border ring-2 ring-accent"
-          >
+      <div
+        className="flex flex-wrap gap-3 after:content-[''] after:grow-10"
+        style={{ "--target-height": "clamp(120px, 15vw, 250px)" } as React.CSSProperties}
+      >
+        {selections.map((s, i) => {
+          const aspect =
+            s.width && s.height ? s.width / s.height : 3 / 2;
+          const ratio =
+            s.width && s.height ? `${s.width} / ${s.height}` : "3 / 2";
+          return (
             <div
-              className="aspect-square cursor-pointer bg-muted"
-              onClick={() => setLightboxIndex(i)}
+              key={s.id}
+              className="overflow-hidden rounded-lg border border-border ring-2 ring-accent"
+              style={{
+                flexGrow: aspect,
+                flexBasis: `calc(${aspect} * var(--target-height, 120px))`,
+              }}
             >
-              {s.thumbnailKey && (
-                <img
-                  src={`/api/photo/${s.photoId}/thumbnail`}
-                  alt={s.filename}
-                  className="h-full w-full object-cover"
-                  loading="lazy"
-                />
-              )}
-            </div>
-            <div className="flex items-center justify-between p-2">
-              <p className="truncate text-xs text-muted-foreground">
-                {s.filename}
-              </p>
-              <a
-                href={`/api/photo/${s.photoId}/download`}
-                download
-                className="shrink-0 ml-2 text-xs text-muted-foreground hover:text-foreground"
+              <div
+                className="cursor-pointer bg-muted"
+                style={{ aspectRatio: ratio }}
+                onClick={() => setLightboxIndex(i)}
               >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V3" />
-                </svg>
-              </a>
+                {s.thumbnailKey && (
+                  <img
+                    src={`/api/photo/${s.photoId}/thumbnail`}
+                    alt={s.filename}
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                )}
+              </div>
+              <div className="flex items-center justify-between p-2">
+                <p className="truncate text-xs text-muted-foreground">
+                  {s.filename}
+                </p>
+                <a
+                  href={`/api/photo/${s.photoId}/download`}
+                  download
+                  className="shrink-0 ml-2 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V3" />
+                  </svg>
+                </a>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {lightboxIndex !== null && (

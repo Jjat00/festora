@@ -26,6 +26,8 @@ export default async function SelectionsPage({
           objectKey: true,
           thumbnailKey: true,
           order: true,
+          width: true,
+          height: true,
         },
       },
     },
@@ -47,6 +49,8 @@ export default async function SelectionsPage({
           photoId: s.photo.id,
           filename: s.photo.originalFilename,
           thumbnailKey: s.photo.thumbnailKey,
+          width: s.photo.width,
+          height: s.photo.height,
         }))}
       />
     </div>

@@ -27,6 +27,7 @@ function PhotoCard({
   index,
   isLocked,
   isPending,
+  isMasonry = false,
   onOpen,
   onToggle,
 }: {
@@ -34,10 +35,18 @@ function PhotoCard({
   index: number;
   isLocked: boolean;
   isPending: boolean;
+  isMasonry?: boolean;
   onOpen: (i: number) => void;
   onToggle: (id: string) => void;
 }) {
   const [loaded, setLoaded] = useState(false);
+  const aspect =
+    photo.width && photo.height ? photo.width / photo.height : 3 / 2;
+  const ratio =
+    isMasonry && photo.width && photo.height
+      ? `${photo.width} / ${photo.height}`
+      : "3 / 2";
+
   return (
     <div
       className={`group relative cursor-zoom-in overflow-hidden rounded-lg transition-all ${
@@ -45,9 +54,20 @@ function PhotoCard({
           ? "ring-2 ring-accent ring-offset-2 ring-offset-background"
           : ""
       }`}
+      style={
+        isMasonry
+          ? {
+              flexGrow: aspect,
+              flexBasis: `calc(${aspect} * var(--target-height, 120px))`,
+            }
+          : undefined
+      }
       onClick={() => onOpen(index)}
     >
-      <div className="relative w-full overflow-hidden rounded-lg" style={{ aspectRatio: "3 / 2" }}>
+      <div
+        className="relative w-full overflow-hidden rounded-lg"
+        style={{ aspectRatio: ratio }}
+      >
         <div
           className={`absolute inset-0 bg-muted transition-opacity duration-300 ${
             loaded ? "opacity-0" : "animate-pulse opacity-100"
@@ -62,7 +82,9 @@ function PhotoCard({
           style={{ transform: "translate3d(0, 0, 0)" }}
           loading="lazy"
           onLoad={() => setLoaded(true)}
-          ref={(node) => { if (node?.complete) setLoaded(true); }}
+          ref={(node) => {
+            if (node?.complete) setLoaded(true);
+          }}
         />
       </div>
 
@@ -77,7 +99,9 @@ function PhotoCard({
             ? "bg-accent text-accent-foreground"
             : "bg-black/40 text-white/70 opacity-0 group-hover:opacity-100 hover:bg-black/60 hover:text-white"
         } ${isLocked ? "cursor-default" : "cursor-pointer"}`}
-        aria-label={photo.selected ? "Quitar de favoritas" : "Agregar a favoritas"}
+        aria-label={
+          photo.selected ? "Quitar de favoritas" : "Agregar a favoritas"
+        }
       >
         <svg
           className="h-4 w-4"
@@ -118,7 +142,7 @@ export function GalleryView({
 
   const shouldRecalculate = useCallback(
     (count: number) => count >= 5 && (count === 5 || (count - 5) % 3 === 0),
-    []
+    [],
   );
 
   // Categorías disponibles con conteo, ordenadas por cantidad
@@ -142,13 +166,14 @@ export function GalleryView({
 
   const hasDestacadas = useMemo(
     () => photoStates.some((p) => p.compositeScore != null),
-    [photoStates]
+    [photoStates],
   );
 
   // Fotos visibles según el tab activo
   const visiblePhotos = useMemo(() => {
     if (activeCategory === null) return photoStates;
-    if (activeCategory === "_favorites") return photoStates.filter((p) => p.selected);
+    if (activeCategory === "_favorites")
+      return photoStates.filter((p) => p.selected);
     if (activeCategory === "destacadas") {
       return [...photoStates]
         .filter((p) => p.compositeScore != null)
@@ -165,8 +190,8 @@ export function GalleryView({
       const result = await toggleSelection(projectId, photoId);
       setPhotoStates((prev) =>
         prev.map((p) =>
-          p.id === photoId ? { ...p, selected: result.selected } : p
-        )
+          p.id === photoId ? { ...p, selected: result.selected } : p,
+        ),
       );
       setTotal(result.totalSelected);
 
@@ -175,16 +200,19 @@ export function GalleryView({
         setActiveCategory(null);
       }
 
-      if (result.totalSelected >= 5 && shouldRecalculate(result.totalSelected)) {
+      if (
+        result.totalSelected >= 5 &&
+        shouldRecalculate(result.totalSelected)
+      ) {
         const orderedIds = await computeSmartOrder(projectId);
         const idOrder = new Map(orderedIds.map((id, i) => [id, i]));
 
         setPhotoStates((prev) => {
           const updated = prev.map((p) =>
-            p.id === photoId ? { ...p, selected: result.selected } : p
+            p.id === photoId ? { ...p, selected: result.selected } : p,
           );
           return [...updated].sort(
-            (a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0)
+            (a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0),
           );
         });
 
@@ -262,8 +290,15 @@ export function GalleryView({
         </p>
       )}
 
-      {/* Grid — lectura izquierda a derecha */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+      {/* Grid */}
+      <div
+        className="flex flex-wrap gap-3 after:content-[''] after:grow-10"
+        style={
+          {
+            "--target-height": "clamp(120px, 15vw, 250px)",
+          } as React.CSSProperties
+        }
+      >
         {visiblePhotos.map((photo, i) => (
           <PhotoCard
             key={photo.id}
@@ -271,6 +306,7 @@ export function GalleryView({
             index={i}
             isLocked={isLocked}
             isPending={isPending}
+            isMasonry
             onOpen={setLightboxIndex}
             onToggle={handleToggle}
           />

@@ -292,35 +292,49 @@ export function AlbumDetail({
             </p>
           </div>
         ) : (
-          <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 xl:columns-4">
-            {photos.map((photo, index) => (
-              <div
-                key={photo.id}
-                className="group relative mb-4 cursor-zoom-in overflow-hidden rounded-lg break-inside-avoid"
-                style={{
-                  aspectRatio:
-                    photo.width && photo.height
-                      ? `${photo.width} / ${photo.height}`
-                      : "4 / 3",
-                }}
-                onClick={() => setLightboxIndex(index)}
-              >
-                <img
-                  src={`/api/photo/${photo.id}/thumbnail`}
-                  alt={photo.originalFilename}
-                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                  loading="lazy"
-                />
+          <div
+            className="flex flex-wrap gap-3 after:content-[''] after:grow-10"
+            style={{ "--target-height": "clamp(120px, 15vw, 250px)" } as React.CSSProperties}
+          >
+            {photos.map((photo, index) => {
+              const aspect =
+                photo.width && photo.height ? photo.width / photo.height : 3 / 2;
+              const ratio =
+                photo.width && photo.height
+                  ? `${photo.width} / ${photo.height}`
+                  : "3 / 2";
+              return (
+                <div
+                  key={photo.id}
+                  className="group relative cursor-zoom-in overflow-hidden rounded-lg"
+                  style={{
+                    flexGrow: aspect,
+                    flexBasis: `calc(${aspect} * var(--target-height, 120px))`,
+                  }}
+                  onClick={() => setLightboxIndex(index)}
+                >
+                  <div
+                    className="relative w-full overflow-hidden bg-muted"
+                    style={{ aspectRatio: ratio }}
+                  >
+                    <img
+                      src={`/api/photo/${photo.id}/thumbnail`}
+                      alt={photo.originalFilename}
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      loading="lazy"
+                    />
+                  </div>
 
-                {/* Score badge */}
-                <div className="absolute right-2 top-2">
-                  <LlmScoreBadge photo={photo} />
+                  {/* Score badge */}
+                  <div className="absolute right-2 top-2">
+                    <LlmScoreBadge photo={photo} />
+                  </div>
+
+                  {/* Hover overlay */}
+                  <div className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/20" />
                 </div>
-
-                {/* Hover overlay */}
-                <div className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/20" />
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

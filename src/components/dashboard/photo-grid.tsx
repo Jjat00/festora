@@ -64,15 +64,17 @@ function LlmScoreBadge({ photo }: { photo: PhotoWithSelection }) {
   if (photo.llmScore == null) return null;
   return (
     <div className="absolute right-2 top-2">
-      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold leading-4 tabular-nums ${
-        photo.llmDiscardReason
-          ? "bg-red-600/80 text-white"
-          : photo.llmScore >= 8
-            ? "bg-green-600/80 text-white"
-            : photo.llmScore >= 6
-              ? "bg-yellow-600/80 text-white"
-              : "bg-black/60 text-white/80"
-      }`}>
+      <span
+        className={`rounded-full px-2 py-0.5 text-[10px] font-bold leading-4 tabular-nums ${
+          photo.llmDiscardReason
+            ? "bg-red-600/80 text-white"
+            : photo.llmScore >= 8
+              ? "bg-green-600/80 text-white"
+              : photo.llmScore >= 6
+                ? "bg-yellow-600/80 text-white"
+                : "bg-black/60 text-white/80"
+        }`}
+      >
         {photo.llmScore.toFixed(1)}/10
       </span>
     </div>
@@ -83,7 +85,6 @@ function PhotoCard({
   photo,
   index,
   isDeleting,
-  isMasonry,
   isSelecting,
   isSelected,
   isFavorited,
@@ -96,7 +97,6 @@ function PhotoCard({
   photo: PhotoWithSelection;
   index: number;
   isDeleting: boolean;
-  isMasonry: boolean;
   isSelecting: boolean;
   isSelected: boolean;
   isFavorited: boolean;
@@ -107,22 +107,26 @@ function PhotoCard({
   onToggleFavorite: (id: string) => void;
 }) {
   const [loaded, setLoaded] = useState(false);
+  const aspect =
+    photo.width && photo.height ? photo.width / photo.height : 3 / 2;
   const ratio =
-    isMasonry && photo.width && photo.height
+    photo.width && photo.height
       ? `${photo.width} / ${photo.height}`
-      : "1 / 1";
+      : "3 / 2";
 
   return (
     <div
       className={`group relative overflow-hidden rounded-lg border border-border transition-all ${
-        isMasonry ? "mb-4 break-inside-avoid" : ""
-      } ${
         isSelected
           ? "ring-2 ring-foreground"
           : photo.selection
             ? "ring-2 ring-accent"
             : ""
       }`}
+      style={{
+        flexGrow: aspect,
+        flexBasis: `calc(${aspect} * var(--target-height, 120px))`,
+      }}
     >
       <div
         className={`relative w-full overflow-hidden rounded-lg ${
@@ -146,7 +150,9 @@ function PhotoCard({
           className={`absolute inset-0 h-full w-full object-cover brightness-90 transition-all duration-500 will-change-auto group-hover:brightness-100 ${
             loaded ? "opacity-100" : "opacity-0"
           }`}
-          ref={(node) => { if (node?.complete) setLoaded(true); }}
+          ref={(node) => {
+            if (node?.complete) setLoaded(true);
+          }}
           style={{ transform: "translate3d(0, 0, 0)" }}
           loading="lazy"
           onLoad={() => setLoaded(true)}
@@ -185,7 +191,9 @@ function PhotoCard({
       {/* Hover overlay with actions — hidden in selection mode */}
       {!isSelecting && (
         <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 p-2 opacity-0 transition-opacity group-hover:opacity-100">
-          <p className="truncate text-xs text-white">{photo.originalFilename}</p>
+          <p className="truncate text-xs text-white">
+            {photo.originalFilename}
+          </p>
           <div className="mt-1 flex gap-3">
             <a
               href={`/api/photo/${photo.id}/download`}
@@ -261,7 +269,7 @@ export function PhotoGrid({
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [sort, setSort] = useState<SortMode>("order");
   const [favorites, setFavorites] = useState<Set<string>>(
-    () => new Set(photos.filter((p) => p.selection).map((p) => p.id))
+    () => new Set(photos.filter((p) => p.selection).map((p) => p.id)),
   );
   const [favPending, setFavPending] = useState<string | null>(null);
   const [, startFavTransition] = useTransition();
@@ -289,7 +297,7 @@ export function PhotoGrid({
 
     if (sort === "score") {
       return [...filtered].sort(
-        (a, b) => (b.compositeScore ?? -1) - (a.compositeScore ?? -1)
+        (a, b) => (b.compositeScore ?? -1) - (a.compositeScore ?? -1),
       );
     }
     if (sort === "category") {
@@ -363,7 +371,7 @@ export function PhotoGrid({
     if (selectedIds.size === 0) return;
     if (
       !confirm(
-        `¿Eliminar ${selectedIds.size} foto${selectedIds.size !== 1 ? "s" : ""}? Esta acción no se puede deshacer.`
+        `¿Eliminar ${selectedIds.size} foto${selectedIds.size !== 1 ? "s" : ""}? Esta acción no se puede deshacer.`,
       )
     )
       return;
@@ -392,7 +400,9 @@ export function PhotoGrid({
             <div className="flex items-center gap-2">
               {selectedIds.size < photos.length ? (
                 <button
-                  onClick={() => setSelectedIds(new Set(photos.map((p) => p.id)))}
+                  onClick={() =>
+                    setSelectedIds(new Set(photos.map((p) => p.id)))
+                  }
                   className="text-sm text-muted-foreground hover:text-foreground"
                 >
                   Seleccionar todo
@@ -473,7 +483,9 @@ export function PhotoGrid({
           {categories.map(({ name, count }) => (
             <button
               key={name}
-              onClick={() => setCategoryFilter(categoryFilter === name ? null : name)}
+              onClick={() =>
+                setCategoryFilter(categoryFilter === name ? null : name)
+              }
               className={`rounded-full px-2.5 py-1 text-xs transition-colors ${
                 categoryFilter === name
                   ? "bg-foreground text-background"
@@ -496,9 +508,15 @@ export function PhotoGrid({
             return (
               <div key={name}>
                 <h3 className="mb-3 text-sm font-semibold capitalize text-foreground">
-                  {name} <span className="font-normal text-muted-foreground">({catPhotos.length})</span>
+                  {name}{" "}
+                  <span className="font-normal text-muted-foreground">
+                    ({catPhotos.length})
+                  </span>
                 </h3>
-                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                <div
+                  className="flex flex-wrap gap-3 after:content-[''] after:grow-10"
+                  style={{ "--target-height": "clamp(120px, 15vw, 250px)" } as React.CSSProperties}
+                >
                   {catPhotos.map((photo) => {
                     const globalIndex = sorted.indexOf(photo);
                     return (
@@ -507,7 +525,6 @@ export function PhotoGrid({
                         photo={photo}
                         index={globalIndex}
                         isDeleting={deleting === photo.id}
-                        isMasonry={false}
                         isSelecting={isSelecting}
                         isSelected={selectedIds.has(photo.id)}
                         isFavorited={favorites.has(photo.id)}
@@ -527,45 +544,51 @@ export function PhotoGrid({
           {sorted.some((p) => !p.llmCategory) && (
             <div>
               <h3 className="mb-3 text-sm font-semibold text-foreground">
-                Sin categoría <span className="font-normal text-muted-foreground">({sorted.filter((p) => !p.llmCategory).length})</span>
+                Sin categoría{" "}
+                <span className="font-normal text-muted-foreground">
+                  ({sorted.filter((p) => !p.llmCategory).length})
+                </span>
               </h3>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                {sorted.filter((p) => !p.llmCategory).map((photo) => {
-                  const globalIndex = sorted.indexOf(photo);
-                  return (
-                    <PhotoCard
-                      key={photo.id}
-                      photo={photo}
-                      index={globalIndex}
-                      isDeleting={deleting === photo.id}
-                      isMasonry={false}
-                      isSelecting={isSelecting}
-                      isSelected={selectedIds.has(photo.id)}
-                      isFavorited={favorites.has(photo.id)}
-                      isFavPending={favPending === photo.id}
-                      onOpen={setLightboxIndex}
-                      onToggleSelect={toggleSelect}
-                      onDelete={handleDelete}
-                      onToggleFavorite={handleFavoriteToggle}
-                    />
-                  );
-                })}
+              <div
+                className="flex flex-wrap gap-3 after:content-[''] after:grow-10"
+                style={{ "--target-height": "clamp(120px, 15vw, 250px)" } as React.CSSProperties}
+              >
+                {sorted
+                  .filter((p) => !p.llmCategory)
+                  .map((photo) => {
+                    const globalIndex = sorted.indexOf(photo);
+                    return (
+                      <PhotoCard
+                        key={photo.id}
+                        photo={photo}
+                        index={globalIndex}
+                        isDeleting={deleting === photo.id}
+                        isSelecting={isSelecting}
+                        isSelected={selectedIds.has(photo.id)}
+                        isFavorited={favorites.has(photo.id)}
+                        isFavPending={favPending === photo.id}
+                        onOpen={setLightboxIndex}
+                        onToggleSelect={toggleSelect}
+                        onDelete={handleDelete}
+                        onToggleFavorite={handleFavoriteToggle}
+                      />
+                    );
+                  })}
               </div>
             </div>
           )}
         </div>
       ) : (
-        <div className={sort === "order"
-          ? "columns-1 gap-4 sm:columns-2 lg:columns-3 xl:columns-4"
-          : "grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"
-        }>
+        <div
+          className="flex flex-wrap gap-3 after:content-[''] after:grow-10"
+          style={{ "--target-height": "clamp(120px, 15vw, 250px)" } as React.CSSProperties}
+        >
           {sorted.map((photo, i) => (
             <PhotoCard
               key={photo.id}
               photo={photo}
               index={i}
               isDeleting={deleting === photo.id}
-              isMasonry={sort === "order"}
               isSelecting={isSelecting}
               isSelected={selectedIds.has(photo.id)}
               isFavorited={favorites.has(photo.id)}
