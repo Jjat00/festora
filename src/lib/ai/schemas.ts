@@ -7,7 +7,7 @@ export const emotionSchema = z
       .number()
       .min(-1)
       .max(1)
-      .describe("-1=muy negativa, 0=neutral, 1=muy positiva"),
+      .describe("-1.0=muy negativa, 0.0=neutral, 1.0=muy positiva. Usa 1 decimal (ej: 0.7, -0.3)"),
   })
   .nullable()
   .describe("null si no hay personas visibles en la foto");
@@ -18,17 +18,17 @@ export const photoAnalysisSchema = z.object({
     .number()
     .min(1)
     .max(10)
-    .describe("Calidad general para entrega al cliente. 1=descartable, 10=perfecta"),
+    .describe("Calidad general 1.0-10.0 con 1 decimal (ej: 7.4, 8.2). 1.0=descartable, 10.0=perfecta"),
   blurScore: z
     .number()
     .min(0)
     .max(10)
-    .describe("Nitidez. 0=muy borrosa, 10=nítida. Bokeh intencional=7+"),
+    .describe("Nitidez 0.0-10.0 con 1 decimal (ej: 6.5, 8.8). 0.0=muy borrosa, 10.0=nítida. Bokeh intencional=7.0+"),
   compositeScore: z
     .number()
     .min(0)
     .max(100)
-    .describe("Score compuesto 0-100 combinando todos los factores de calidad"),
+    .describe("Score compuesto 0.0-100.0 con 1 decimal (ej: 72.5, 85.3). Combina todos los factores"),
   emotion: emotionSchema,
   composition: z.string().describe("Tipo de composición: regla de tercios, centrada, etc."),
   poseQuality: z
