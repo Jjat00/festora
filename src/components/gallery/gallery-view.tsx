@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useCallback } from "react";
+import { useState, useTransition, useCallback, useMemo } from "react";
 import {
   toggleSelection,
   computeSmartOrder,
@@ -14,6 +14,12 @@ interface GalleryPhoto {
   selected: boolean;
   width?: number | null;
   height?: number | null;
+  category?: string | null;
+  compositeScore?: number | null;
+}
+
+function capitalize(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 function PhotoCard({
@@ -41,17 +47,12 @@ function PhotoCard({
       }`}
       onClick={() => onOpen(index)}
     >
-      {/* Contenedor con aspect-ratio fijo para grid uniforme */}
       <div className="relative w-full overflow-hidden rounded-lg" style={{ aspectRatio: "3 / 2" }}>
-        {/* Shimmer placeholder — se oculta con opacity cuando carga la imagen */}
         <div
           className={`absolute inset-0 bg-muted transition-opacity duration-300 ${
             loaded ? "opacity-0" : "animate-pulse opacity-100"
           }`}
         />
-
-        {/* Imagen — SIEMPRE renderizada con opacity (nunca display:none) para que
-            lazy loading funcione correctamente en todos los navegadores */}
         <img
           src={`/api/photo/${photo.id}/thumbnail`}
           alt={photo.filename}
@@ -64,7 +65,6 @@ function PhotoCard({
         />
       </div>
 
-      {/* Botón de favorita */}
       <button
         onClick={(e) => {
           e.stopPropagation();
@@ -113,11 +113,48 @@ export function GalleryView({
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [smartOrderApplied, setSmartOrderApplied] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
   const shouldRecalculate = useCallback(
     (count: number) => count >= 5 && (count === 5 || (count - 5) % 3 === 0),
     []
   );
+
+  // Categorías disponibles con conteo, ordenadas por cantidad
+  const categories = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of photoStates) {
+      if (p.category) counts.set(p.category, (counts.get(p.category) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [photoStates]);
+
+  // Mostrar tab "Destacadas" solo si hay fotos con score
+  const destacadasCount = useMemo(() => {
+    const withScore = photoStates
+      .filter((p) => p.compositeScore != null)
+      .sort((a, b) => (b.compositeScore ?? 0) - (a.compositeScore ?? 0));
+    return Math.max(10, Math.ceil(withScore.length * 0.2));
+  }, [photoStates]);
+
+  const hasDestacadas = useMemo(
+    () => photoStates.some((p) => p.compositeScore != null),
+    [photoStates]
+  );
+
+  // Fotos visibles según el tab activo
+  const visiblePhotos = useMemo(() => {
+    if (activeCategory === null) return photoStates;
+    if (activeCategory === "destacadas") {
+      return [...photoStates]
+        .filter((p) => p.compositeScore != null)
+        .sort((a, b) => (b.compositeScore ?? 0) - (a.compositeScore ?? 0))
+        .slice(0, destacadasCount);
+    }
+    return photoStates.filter((p) => p.category === activeCategory);
+  }, [photoStates, activeCategory, destacadasCount]);
 
   function handleToggle(photoId: string) {
     if (isLocked) return;
@@ -131,13 +168,11 @@ export function GalleryView({
       );
       setTotal(result.totalSelected);
 
-      // Smart reordering after enough selections
       if (result.totalSelected >= 5 && shouldRecalculate(result.totalSelected)) {
         const orderedIds = await computeSmartOrder(projectId);
         const idOrder = new Map(orderedIds.map((id, i) => [id, i]));
 
         setPhotoStates((prev) => {
-          // Update the toggled photo's selected state in the current array
           const updated = prev.map((p) =>
             p.id === photoId ? { ...p, selected: result.selected } : p
           );
@@ -155,18 +190,64 @@ export function GalleryView({
     });
   }
 
+  const tabBase =
+    "shrink-0 rounded-full px-3 py-1 text-sm font-medium transition-colors whitespace-nowrap";
+  const tabActive = "bg-foreground text-background";
+  const tabInactive = "text-muted-foreground hover:text-foreground";
+
   return (
     <div>
-      {/* Contador sticky de favoritas */}
-      <div className="sticky top-0 z-10 mb-6 flex items-center justify-center bg-background/90 py-3 backdrop-blur-sm">
-        <div className="rounded-full bg-accent px-4 py-1.5 text-sm font-medium text-accent-foreground">
-          {total} favorita{total !== 1 && "s"}
+      {/* Barra sticky: tabs de categoría + contador */}
+      <div className="sticky top-0 z-10 mb-6 border-b border-border bg-background/90 backdrop-blur-sm">
+        <div className="flex items-center gap-3 px-1 py-3">
+          {/* Tabs — scrollables en móvil */}
+          <div className="flex flex-1 gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+            <button
+              onClick={() => setActiveCategory(null)}
+              className={`${tabBase} ${activeCategory === null ? tabActive : tabInactive}`}
+            >
+              Todas
+              <span className="ml-1.5 opacity-60">{photoStates.length}</span>
+            </button>
+
+            {hasDestacadas && (
+              <button
+                onClick={() => setActiveCategory("destacadas")}
+                className={`${tabBase} ${activeCategory === "destacadas" ? tabActive : tabInactive}`}
+              >
+                ✦ Destacadas
+              </button>
+            )}
+
+            {categories.map((cat) => (
+              <button
+                key={cat.name}
+                onClick={() => setActiveCategory(cat.name)}
+                className={`${tabBase} ${activeCategory === cat.name ? tabActive : tabInactive}`}
+              >
+                {capitalize(cat.name)}
+                <span className="ml-1.5 opacity-60">{cat.count}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Contador de favoritas */}
+          <div className="shrink-0 rounded-full bg-accent px-3 py-1 text-sm font-medium text-accent-foreground">
+            {total} favorita{total !== 1 && "s"}
+          </div>
         </div>
       </div>
 
-      {/* Layout grid — lectura izquierda a derecha */}
+      {/* Mensaje cuando una categoría no tiene fotos */}
+      {visiblePhotos.length === 0 && (
+        <p className="py-20 text-center text-sm text-muted-foreground">
+          No hay fotos en esta categoría
+        </p>
+      )}
+
+      {/* Grid — lectura izquierda a derecha */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-        {photoStates.map((photo, i) => (
+        {visiblePhotos.map((photo, i) => (
           <PhotoCard
             key={photo.id}
             photo={photo}
@@ -179,9 +260,10 @@ export function GalleryView({
         ))}
       </div>
 
+      {/* Lightbox — navega dentro de la vista activa */}
       {lightboxIndex !== null && (
         <Lightbox
-          photos={photoStates.map((p) => ({
+          photos={visiblePhotos.map((p) => ({
             id: p.id,
             filename: p.filename,
             selected: p.selected,

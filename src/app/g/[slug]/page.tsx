@@ -30,6 +30,8 @@ export default async function GalleryPage({
           width: true,
           height: true,
           order: true,
+          llmCategory: true,
+          compositeScore: true,
           selection: { select: { id: true } },
         },
         orderBy: { order: "asc" },
@@ -89,6 +91,8 @@ export default async function GalleryPage({
             selected: p.selection !== null,
             width: p.width,
             height: p.height,
+            category: p.llmCategory,
+            compositeScore: p.compositeScore,
           }))}
           totalSelected={project._count.selections}
           isLocked={isLocked}
