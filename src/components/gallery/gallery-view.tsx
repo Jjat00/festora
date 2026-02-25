@@ -1,7 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { toggleSelection } from "@/lib/actions/selection-actions";
+import { useState, useTransition, useCallback } from "react";
+import {
+  toggleSelection,
+  computeSmartOrder,
+} from "@/lib/actions/selection-actions";
 import { Lightbox } from "@/components/lightbox";
 
 interface GalleryPhoto {
@@ -29,20 +32,17 @@ function PhotoCard({
   onToggle: (id: string) => void;
 }) {
   const [loaded, setLoaded] = useState(false);
-  const ratio =
-    photo.width && photo.height ? `${photo.width} / ${photo.height}` : "4 / 3";
-
   return (
     <div
-      className={`group relative mb-4 break-inside-avoid cursor-zoom-in overflow-hidden rounded-lg transition-all ${
+      className={`group relative cursor-zoom-in overflow-hidden rounded-lg transition-all ${
         photo.selected
           ? "ring-2 ring-accent ring-offset-2 ring-offset-background"
           : ""
       }`}
       onClick={() => onOpen(index)}
     >
-      {/* Contenedor con aspect-ratio fijo para evitar layout shift */}
-      <div className="relative w-full overflow-hidden rounded-lg" style={{ aspectRatio: ratio }}>
+      {/* Contenedor con aspect-ratio fijo para grid uniforme */}
+      <div className="relative w-full overflow-hidden rounded-lg" style={{ aspectRatio: "3 / 2" }}>
         {/* Shimmer placeholder — se oculta con opacity cuando carga la imagen */}
         <div
           className={`absolute inset-0 bg-muted transition-opacity duration-300 ${
@@ -111,6 +111,13 @@ export function GalleryView({
   const [total, setTotal] = useState(initialTotal);
   const [isPending, startTransition] = useTransition();
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [smartOrderApplied, setSmartOrderApplied] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+
+  const shouldRecalculate = useCallback(
+    (count: number) => count >= 5 && (count === 5 || (count - 5) % 3 === 0),
+    []
+  );
 
   function handleToggle(photoId: string) {
     if (isLocked) return;
@@ -123,6 +130,28 @@ export function GalleryView({
         )
       );
       setTotal(result.totalSelected);
+
+      // Smart reordering after enough selections
+      if (result.totalSelected >= 5 && shouldRecalculate(result.totalSelected)) {
+        const orderedIds = await computeSmartOrder(projectId);
+        const idOrder = new Map(orderedIds.map((id, i) => [id, i]));
+
+        setPhotoStates((prev) => {
+          // Update the toggled photo's selected state in the current array
+          const updated = prev.map((p) =>
+            p.id === photoId ? { ...p, selected: result.selected } : p
+          );
+          return [...updated].sort(
+            (a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0)
+          );
+        });
+
+        if (!smartOrderApplied) {
+          setSmartOrderApplied(true);
+          setShowToast(true);
+          setTimeout(() => setShowToast(false), 4000);
+        }
+      }
     });
   }
 
@@ -135,8 +164,8 @@ export function GalleryView({
         </div>
       </div>
 
-      {/* Layout masonry con columnas CSS */}
-      <div className="columns-1 gap-4 sm:columns-2 xl:columns-3 2xl:columns-4">
+      {/* Layout grid — lectura izquierda a derecha */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
         {photoStates.map((photo, i) => (
           <PhotoCard
             key={photo.id}
@@ -162,6 +191,17 @@ export function GalleryView({
           onToggleSelection={isLocked ? undefined : handleToggle}
         />
       )}
+
+      {/* Toast de reordenamiento inteligente */}
+      <div
+        className={`fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-foreground px-5 py-2.5 text-sm text-background shadow-lg transition-all duration-500 ${
+          showToast
+            ? "translate-y-0 opacity-100"
+            : "pointer-events-none translate-y-4 opacity-0"
+        }`}
+      >
+        Reordenamos las fotos según tus gustos
+      </div>
     </div>
   );
 }
