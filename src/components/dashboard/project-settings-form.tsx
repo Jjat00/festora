@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { updateProject } from "@/lib/actions/project-actions";
+import { generateCoverPhrase } from "@/lib/actions/ai-actions";
 import type { Project } from "@prisma/client";
 import type { ProjectType } from "@prisma/client";
 
@@ -22,6 +23,8 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [coverPhrase, setCoverPhrase] = useState(project.coverPhrase || "");
+  const [generating, setGenerating] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -51,12 +54,26 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
     }
   }
 
+  async function handleGeneratePhrase() {
+    setGenerating(true);
+    try {
+      const form = document.getElementById("settings-form") as HTMLFormElement;
+      const projectType = (new FormData(form).get("type") as string) || project.type;
+      const phrase = await generateCoverPhrase(projectType, coverPhrase || undefined);
+      setCoverPhrase(phrase);
+    } catch {
+      setMessage("Error al generar la frase");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   const inputClass =
     "w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent";
   const labelClass = "mb-1 block text-sm font-medium";
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form id="settings-form" onSubmit={handleSubmit} className="space-y-6">
       {message && (
         <div
           className={`rounded-lg p-3 text-sm ${message === "Guardado" ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"}`}
@@ -180,19 +197,42 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
       </div>
 
       <div>
-        <label htmlFor="coverPhrase" className={labelClass}>
-          Frase de portada <span className="text-muted-foreground">(opcional)</span>
-        </label>
+        <div className="flex items-center justify-between mb-1">
+          <label htmlFor="coverPhrase" className="text-sm font-medium">
+            Frase de portada <span className="text-muted-foreground">(opcional)</span>
+          </label>
+          <button
+            type="button"
+            onClick={handleGeneratePhrase}
+            disabled={generating}
+            className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:border-accent transition-colors disabled:opacity-50"
+          >
+            {generating ? (
+              <>
+                <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                Generando...
+              </>
+            ) : (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
+                  <path d="M8 1a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 8 1ZM10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0ZM12.95 4.11a.75.75 0 1 0-1.06-1.06l-1.062 1.06a.75.75 0 0 0 1.061 1.06l1.06-1.06ZM15 8a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 15 8ZM11.828 11.828a.75.75 0 1 0-1.06-1.06l-1.06 1.06a.75.75 0 1 0 1.06 1.06l1.06-1.06ZM8 13a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 8 13ZM4.172 11.828a.75.75 0 1 0 1.06-1.06l-1.06-1.06a.75.75 0 1 0-1.06 1.06l1.06 1.06ZM1 8a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 0 1.5h-1.5A.75.75 0 0 1 1 8ZM4.172 4.172a.75.75 0 0 0-1.06-1.06l-1.06 1.06a.75.75 0 0 0 1.06 1.06l1.06-1.06Z" />
+                </svg>
+                Generar con IA
+              </>
+            )}
+          </button>
+        </div>
         <textarea
           id="coverPhrase"
           name="coverPhrase"
           rows={3}
-          placeholder="Ej: Para siempre y por siempre..."
-          defaultValue={project.coverPhrase || ""}
+          placeholder="Ej: El amor que nos unió ese día..."
+          value={coverPhrase}
+          onChange={(e) => setCoverPhrase(e.target.value)}
           className={`${inputClass} resize-none`}
         />
         <p className="mt-1 text-xs text-muted-foreground">
-          Esta frase aparecerá sobre la imagen principal al abrir la galería.
+          Escribe tu idea y dale a "Generar con IA" para potenciarla. También puedes generar una desde cero.
         </p>
       </div>
 

@@ -351,3 +351,50 @@ El nombre debe ser evocador y bonito, no genérico. Ejemplos:
 
   return { albums: groups.length + 1 };
 }
+
+/* ─── Fase: Generación de frase de portada ─────────────────────────── */
+
+const PROJECT_TYPE_CONTEXT: Record<string, string> = {
+  WEDDING: "una boda — amor, unión, promesas eternas",
+  QUINCEANERA: "unos XV años — juventud, ilusión, nuevo comienzo",
+  GRADUATION: "una graduación — logro, esfuerzo, orgullo familiar",
+  PORTRAIT: "una sesión de retrato — identidad, esencia, belleza personal",
+  CASUAL: "una sesión casual — espontaneidad, alegría, momentos reales",
+  CORPORATE: "un evento corporativo — profesionalismo, éxito, visión",
+  PRODUCT: "fotografía de producto — calidad, detalle, valor",
+  OTHER: "un evento especial — emociones, recuerdos, momentos únicos",
+};
+
+/**
+ * Genera una frase poética para la portada de la galería.
+ * Usa el tipo de proyecto y una frase base opcional como contexto.
+ */
+export async function generateCoverPhrase(
+  projectType: string,
+  basePhrase?: string,
+): Promise<string> {
+  const context = PROJECT_TYPE_CONTEXT[projectType] ?? PROJECT_TYPE_CONTEXT.OTHER;
+
+  const prompt = basePhrase
+    ? `El fotógrafo quiere transmitir esta idea: "${basePhrase}". Parafraséala de forma poética y emotiva, adaptada al contexto de ${context}.`
+    : `Genera una frase original y emotiva para la portada de una galería fotográfica de ${context}.`;
+
+  const { text } = await generateText({
+    model: getAnalysisModel(),
+    system: `Eres un escritor poético especializado en frases cortas para galerías fotográficas.
+Tu objetivo es generar UNA SOLA frase que inspire motivación, orgullo y una pizca de melancolía en el cliente al ver sus fotos.
+
+Reglas:
+- Máximo 15 palabras
+- En español
+- Sin comillas, sin puntos suspensivos al inicio
+- Tono: elegante, emotivo, nostálgico pero esperanzador
+- No uses clichés como "recuerdos que duran para siempre"
+- La frase debe funcionar sola, sin contexto adicional`,
+    prompt,
+    maxOutputTokens: 100,
+    temperature: 0.9,
+  });
+
+  return text.trim().replace(/^[""]|[""]$/g, "");
+}
