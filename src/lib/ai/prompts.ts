@@ -8,7 +8,7 @@ Reglas:
 - Detecta problemas técnicos: desenfoque no intencional, ojos cerrados, poses rígidas, fondos distractores.
 - Distingue bokeh intencional (bueno) de desenfoque accidental (malo).
 - Las emociones genuinas valen más que poses perfectas.
-- Para "category" usa SOLO estos valores exactos: preparativos, ceremonia, retratos, grupo, recepcion, fiesta, detalles, paisaje, otro. No inventes categorías nuevas.
+- Para "category" usa SOLO estos valores exactos: preparativos, ceremonia, retratos, pareja, grupo, familia, ninos, mascotas, recepcion, fiesta, comida, decoracion, detalles, exterior, arquitectura, producto, deportes, otro. No inventes categorías nuevas.
 - Responde siempre en español.`;
 
 export function buildBatchPrompt(photoIds: string[]): string {

@@ -6,35 +6,103 @@ import { analyzeAllPhotos, type PhotoInput } from "@/lib/ai/analyze";
 import type { PhotoAnalysis } from "@/lib/ai/schemas";
 
 const VALID_CATEGORIES = new Set([
-  "preparativos", "ceremonia", "retratos", "grupo",
-  "recepcion", "fiesta", "detalles", "paisaje", "otro",
+  "preparativos", "ceremonia", "retratos", "pareja", "grupo", "familia",
+  "ninos", "mascotas", "recepcion", "fiesta", "comida", "decoracion",
+  "detalles", "exterior", "arquitectura", "producto", "deportes", "otro",
 ]);
 
 /** Normaliza variantes como "Retratos", "retrato", "La Ceremonia" → categoría canónica. */
 function normalizeCategory(raw: string): string {
   const lower = raw.toLowerCase().trim()
-    .replace(/^(la |el |los |las )/, "")
-    .replace(/s$/, ""); // "retratos" → "retrato"
+    .replace(/^(la |el |los |las )/, "");
 
-  // Mapeo de variantes comunes
+  // Si ya es válida tal cual, retornar
+  if (VALID_CATEGORIES.has(lower)) return lower;
+
+  // Mapeo de variantes comunes → categoría canónica
   const aliases: Record<string, string> = {
+    // Singular → plural / canónico
     retrato: "retratos",
     preparativo: "preparativos",
     detalle: "detalles",
+    mascota: "mascotas",
+    // Acentos y variantes
     recepción: "recepcion",
+    decoración: "decoracion",
+    niños: "ninos",
+    niño: "ninos",
+    nina: "ninos",
+    niña: "ninos",
+    // Sinónimos → fiesta
     baile: "fiesta",
     "primer baile": "fiesta",
     brindis: "fiesta",
     vals: "fiesta",
-    exterior: "paisaje",
-    jardín: "paisaje",
-    jardin: "paisaje",
+    celebracion: "fiesta",
+    celebración: "fiesta",
+    // Sinónimos → exterior
+    paisaje: "exterior",
+    jardín: "exterior",
+    jardin: "exterior",
+    "al aire libre": "exterior",
+    naturaleza: "exterior",
+    parque: "exterior",
+    playa: "exterior",
+    campo: "exterior",
+    // Sinónimos → grupo
     grupal: "grupo",
-    familiar: "grupo",
+    amigos: "grupo",
+    // Sinónimos → familia
+    familiar: "familia",
+    familias: "familia",
+    familiares: "familia",
+    // Sinónimos → pareja
+    parejas: "pareja",
+    novios: "pareja",
+    enamorados: "pareja",
+    romantico: "pareja",
+    romántico: "pareja",
+    // Sinónimos → mascotas
+    perro: "mascotas",
+    gato: "mascotas",
+    animal: "mascotas",
+    animales: "mascotas",
+    // Sinónimos → comida
+    alimentos: "comida",
+    gastronomia: "comida",
+    gastronomía: "comida",
+    pastel: "comida",
+    banquete: "comida",
+    mesa: "comida",
+    // Sinónimos → arquitectura
+    edificio: "arquitectura",
+    iglesia: "arquitectura",
+    salon: "arquitectura",
+    salón: "arquitectura",
+    venue: "arquitectura",
+    locacion: "arquitectura",
+    locación: "arquitectura",
+    // Sinónimos → producto
+    productos: "producto",
+    objeto: "producto",
+    objetos: "producto",
+    // Sinónimos → decoracion
+    flores: "decoracion",
+    arreglos: "decoracion",
+    centros: "decoracion",
+    // Sinónimos → detalles
+    accesorios: "detalles",
+    anillos: "detalles",
+    zapatos: "detalles",
+    ramo: "detalles",
+    invitaciones: "detalles",
+    // Sinónimos → deportes
+    deporte: "deportes",
+    atleta: "deportes",
+    fitness: "deportes",
   };
 
-  const normalized = aliases[lower] ?? lower + "s"; // re-pluralizar si no hay alias
-  return VALID_CATEGORIES.has(normalized) ? normalized : (VALID_CATEGORIES.has(lower) ? lower : "otro");
+  return aliases[lower] ?? "otro";
 }
 
 /**
