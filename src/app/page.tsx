@@ -18,18 +18,18 @@ export default async function Home() {
             alt="Festora"
             width={32}
             height={32}
-            className="brightness-0 dark:invert"
+            className="brightness-0 invert"
             priority
           />
           {session?.user ? (
             <Link
               href="/dashboard"
-              className="rounded-full border border-border px-5 py-2 text-xs font-medium text-muted-foreground transition-colors hover:border-muted-foreground hover:text-foreground"
+              className="rounded-full border border-white/20 px-5 py-2 text-xs font-medium text-white/70 transition-colors hover:border-white/50 hover:text-white backdrop-blur-sm bg-black/20"
             >
               Dashboard
             </Link>
           ) : (
-            <SignInButton />
+            <SignInButton className="rounded-full border border-white/20 px-5 py-2 text-xs font-medium text-white/70 transition-colors hover:border-white/50 hover:text-white backdrop-blur-sm bg-black/20" />
           )}
         </nav>
 
@@ -40,17 +40,17 @@ export default async function Home() {
               alt="Festora"
               width={600}
               height={250}
-              className="w-[340px] md:w-[400px] lg:w-[600px] h-auto brightness-0 dark:invert opacity-90"
+              className="w-[340px] md:w-[400px] lg:w-[600px] h-auto brightness-0 invert opacity-95 drop-shadow-2xl"
               priority
             />
-            <p className="mt-6 max-w-sm text-center text-base font-light leading-relaxed text-muted-foreground">
+            <p className="mt-8 max-w-md text-center text-lg font-light leading-relaxed text-white/80 drop-shadow-md">
               La forma más elegante de compartir tus fotos con tus clientes.
             </p>
             <div className="mt-10 flex items-center gap-4">
               {session?.user ? (
                 <Link
                   href="/dashboard"
-                  className="inline-flex h-11 items-center gap-2 rounded-full bg-foreground px-7 text-sm font-medium text-background transition-opacity hover:opacity-80"
+                  className="inline-flex h-12 items-center gap-2 rounded-full bg-white px-8 text-sm font-medium text-black transition-opacity hover:opacity-90 shadow-xl"
                 >
                   Ir al dashboard
                   <svg
@@ -68,7 +68,7 @@ export default async function Home() {
                 </Link>
               ) : (
                 <SignInButton
-                  className="inline-flex h-11 items-center gap-2 rounded-full bg-foreground px-7 text-sm font-medium text-background transition-opacity hover:opacity-80"
+                  className="inline-flex h-12 items-center gap-2 rounded-full bg-white px-8 text-sm font-medium text-black transition-opacity hover:opacity-90 shadow-xl"
                   label="Comenzar gratis"
                 />
               )}
@@ -87,7 +87,7 @@ export default async function Home() {
             strokeWidth="1.5"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className="animate-bounce text-muted-foreground/40"
+            className="animate-bounce text-white/50"
           >
             <path d="M12 5v14M5 12l7 7 7-7" />
           </svg>
