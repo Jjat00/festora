@@ -5,7 +5,7 @@ import { getSignedReadUrl } from "@/lib/r2";
 import { generateText, Output } from "ai";
 import { z } from "zod";
 import { getAnalysisModel } from "@/lib/ai/provider";
-import { analyzeAllPhotos, type PhotoInput } from "@/lib/ai/analyze";
+import { analyzePhotoBatch, type PhotoInput } from "@/lib/ai/analyze";
 import type { PhotoAnalysis } from "@/lib/ai/schemas";
 
 const VALID_CATEGORIES = new Set([
@@ -138,64 +138,70 @@ export async function dispatchPhotoAnalysis(
     return;
   }
 
-  // Analizar con AI SDK
-  let results: PhotoAnalysis[];
-  let tokensUsed: number;
-  try {
-    const response = await analyzeAllPhotos(photoInputs);
-    results = response.results;
-    tokensUsed = response.tokensUsed;
-  } catch (err) {
-    console.error("[ai] Analysis error:", err);
-    await markBatchFailed(photos.map((p) => p.id));
-    return;
-  }
+  // Analizar batch a batch y persistir cada batch en la DB al terminar.
+  // Así el progreso se ve gradualmente en el polling (cada 5 fotos).
+  const BATCH_SIZE = 5;
+  for (let i = 0; i < photoInputs.length; i += BATCH_SIZE) {
+    const batchInputs = photoInputs.slice(i, i + BATCH_SIZE);
+    const batchPhotos = photos.slice(i, i + BATCH_SIZE);
 
-  console.log(`[ai] Analyzed ${results.length}/${photos.length} photos | ${tokensUsed} tokens`);
+    let results: PhotoAnalysis[];
+    let tokensUsed: number;
+    try {
+      const response = await analyzePhotoBatch(batchInputs);
+      results = response.results;
+      tokensUsed = response.tokensUsed;
+    } catch (err) {
+      console.error(`[ai] Batch ${i / BATCH_SIZE + 1} error:`, err);
+      await markBatchFailed(batchPhotos.map((p) => p.id));
+      continue;
+    }
 
-  // Crear un mapa de resultados por photoId
-  const resultMap = new Map(results.map((r) => [r.photoId, r]));
-  const now = new Date();
+    console.log(`[ai] Batch ${i / BATCH_SIZE + 1}: ${results.length}/${batchPhotos.length} | ${tokensUsed} tokens`);
 
-  // Persistir resultados
-  await Promise.all(
-    photos.map(async (photo) => {
-      const result = resultMap.get(photo.id);
-      if (!result) {
+    const resultMap = new Map(results.map((r) => [r.photoId, r]));
+    const now = new Date();
+
+    // Persistir este batch inmediatamente — el polling lo ve de inmediato
+    await Promise.all(
+      batchPhotos.map(async (photo) => {
+        const result = resultMap.get(photo.id);
+        if (!result) {
+          await prisma.photo.update({
+            where: { id: photo.id },
+            data: { aiStatus: "FAILED", aiProcessedAt: now },
+          });
+          return;
+        }
+
         await prisma.photo.update({
           where: { id: photo.id },
-          data: { aiStatus: "FAILED", aiProcessedAt: now },
+          data: {
+            aiStatus: "DONE",
+            aiProcessedAt: now,
+            blurScore: result.blurScore,
+            compositeScore: result.compositeScore,
+            emotionLabel: result.emotion?.label ?? null,
+            emotionValence: result.emotion?.valence ?? null,
+            llmScore: result.overallScore,
+            llmModel: "gpt-4o-mini",
+            llmSummary: result.summary,
+            llmDiscardReason: result.discardReason,
+            llmBestInGroup: result.bestInGroup,
+            llmComposition: result.composition,
+            llmPoseQuality: result.poseQuality,
+            llmBackgroundQuality: result.backgroundQuality,
+            llmHighlights: result.highlights,
+            llmIssues: result.issues,
+            llmTokensUsed: tokensUsed,
+            llmAnalyzedAt: now,
+            llmCategory: normalizeCategory(result.category),
+            llmTags: result.tags,
+          },
         });
-        return;
-      }
-
-      await prisma.photo.update({
-        where: { id: photo.id },
-        data: {
-          aiStatus: "DONE",
-          aiProcessedAt: now,
-          blurScore: result.blurScore,
-          compositeScore: result.compositeScore,
-          emotionLabel: result.emotion?.label ?? null,
-          emotionValence: result.emotion?.valence ?? null,
-          llmScore: result.overallScore,
-          llmModel: "gpt-4o-mini",
-          llmSummary: result.summary,
-          llmDiscardReason: result.discardReason,
-          llmBestInGroup: result.bestInGroup,
-          llmComposition: result.composition,
-          llmPoseQuality: result.poseQuality,
-          llmBackgroundQuality: result.backgroundQuality,
-          llmHighlights: result.highlights,
-          llmIssues: result.issues,
-          llmTokensUsed: tokensUsed,
-          llmAnalyzedAt: now,
-          llmCategory: normalizeCategory(result.category),
-          llmTags: result.tags,
-        },
-      });
-    })
-  );
+      })
+    );
+  }
 }
 
 async function markBatchFailed(photoIds: string[]): Promise<void> {
