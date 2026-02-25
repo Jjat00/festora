@@ -232,7 +232,7 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
           className={`${inputClass} resize-none`}
         />
         <p className="mt-1 text-xs text-muted-foreground">
-          Escribe tu idea y dale a "Generar con IA" para potenciarla. También puedes generar una desde cero.
+          Escribe tu idea y dale a &quot;Generar con IA&quot; para potenciarla. También puedes generar una desde cero.
         </p>
       </div>
 
