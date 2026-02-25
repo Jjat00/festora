@@ -226,7 +226,7 @@ export function GalleryView({
   }
 
   const tabBase =
-    "shrink-0 rounded-full px-3 py-1 text-sm font-medium transition-colors whitespace-nowrap";
+    "shrink-0 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors whitespace-nowrap";
   const tabActive = "bg-foreground text-background";
   const tabInactive = "text-muted-foreground hover:text-foreground";
 
@@ -234,50 +234,62 @@ export function GalleryView({
     <div>
       {/* Barra sticky: tabs de categoría + contador */}
       <div className="sticky top-0 z-10 mb-6 border-b border-border bg-background/90 backdrop-blur-sm">
-        <div className="flex items-center gap-3 px-1 py-3">
-          {/* Tabs — scrollables en móvil */}
-          <div className="flex flex-1 gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
-            <button
-              onClick={() => setActiveCategory(null)}
-              className={`${tabBase} ${activeCategory === null ? tabActive : tabInactive}`}
-            >
-              Todas
-              <span className="ml-1.5 opacity-60">{photoStates.length}</span>
-            </button>
+        {/* Contador de favoritas — fila propia en mobile, inline en desktop */}
+        <div className="flex items-center justify-between px-3 pt-3 pb-1 sm:hidden">
+          <span className="text-xs font-medium text-muted-foreground">Categorías</span>
+          <div className="rounded-full bg-accent px-3 py-1 text-xs font-medium text-accent-foreground">
+            {total} favorita{total !== 1 && "s"}
+          </div>
+        </div>
 
-            {total > 0 && (
+        <div className="flex items-center gap-3 px-1 pb-3 pt-1 sm:py-3">
+          {/* Tabs — scrollables en móvil con fade */}
+          <div className="relative min-w-0 flex-1">
+            <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
               <button
-                onClick={() => setActiveCategory("_favorites")}
-                className={`${tabBase} ${activeCategory === "_favorites" ? tabActive : tabInactive}`}
+                onClick={() => setActiveCategory(null)}
+                className={`${tabBase} ${activeCategory === null ? tabActive : tabInactive}`}
               >
-                ♥ Mis favoritas
-                <span className="ml-1.5 opacity-60">{total}</span>
+                Todas
+                <span className="ml-1.5 opacity-60">{photoStates.length}</span>
               </button>
-            )}
 
-            {hasDestacadas && (
-              <button
-                onClick={() => setActiveCategory("destacadas")}
-                className={`${tabBase} ${activeCategory === "destacadas" ? tabActive : tabInactive}`}
-              >
-                ✦ Destacadas
-              </button>
-            )}
+              {total > 0 && (
+                <button
+                  onClick={() => setActiveCategory("_favorites")}
+                  className={`${tabBase} ${activeCategory === "_favorites" ? tabActive : tabInactive}`}
+                >
+                  ♥ Mis favoritas
+                  <span className="ml-1.5 opacity-60">{total}</span>
+                </button>
+              )}
 
-            {categories.map((cat) => (
-              <button
-                key={cat.name}
-                onClick={() => setActiveCategory(cat.name)}
-                className={`${tabBase} ${activeCategory === cat.name ? tabActive : tabInactive}`}
-              >
-                {capitalize(cat.name)}
-                <span className="ml-1.5 opacity-60">{cat.count}</span>
-              </button>
-            ))}
+              {hasDestacadas && (
+                <button
+                  onClick={() => setActiveCategory("destacadas")}
+                  className={`${tabBase} ${activeCategory === "destacadas" ? tabActive : tabInactive}`}
+                >
+                  ✦ Destacadas
+                </button>
+              )}
+
+              {categories.map((cat) => (
+                <button
+                  key={cat.name}
+                  onClick={() => setActiveCategory(cat.name)}
+                  className={`${tabBase} ${activeCategory === cat.name ? tabActive : tabInactive}`}
+                >
+                  {capitalize(cat.name)}
+                  <span className="ml-1.5 opacity-60">{cat.count}</span>
+                </button>
+              ))}
+            </div>
+            {/* Fade derecho para indicar scroll */}
+            <div className="pointer-events-none absolute right-0 top-0 h-full w-8 bg-gradient-to-l from-background/90 to-transparent sm:hidden" />
           </div>
 
-          {/* Contador de favoritas */}
-          <div className="shrink-0 rounded-full bg-accent px-3 py-1 text-sm font-medium text-accent-foreground">
+          {/* Contador de favoritas — solo visible en desktop */}
+          <div className="hidden shrink-0 rounded-full bg-accent px-3 py-1 text-sm font-medium text-accent-foreground sm:block">
             {total} favorita{total !== 1 && "s"}
           </div>
         </div>
