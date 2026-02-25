@@ -19,8 +19,10 @@ export async function GET(
 
   const key = photo.thumbnailKey ?? photo.objectKey;
   const signedUrl = await getSignedReadUrl(key);
-  const response = NextResponse.redirect(signedUrl);
-  // Cache for 55 min (presigned URL TTL is 60 min — leave 5 min margin)
-  response.headers.set("Cache-Control", "private, max-age=3300, immutable");
+  // Redirigir a la presigned URL de R2
+  // No cachear el redirect — el browser debe pedir una URL fresca en cada reload.
+  // La imagen en sí se cachea por R2/CDN con sus propios headers.
+  const response = NextResponse.redirect(signedUrl, { status: 302 });
+  response.headers.set("Cache-Control", "no-store");
   return response;
 }

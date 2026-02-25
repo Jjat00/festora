@@ -62,6 +62,7 @@ function PhotoCard({
           style={{ transform: "translate3d(0, 0, 0)" }}
           loading="lazy"
           onLoad={() => setLoaded(true)}
+          ref={(node) => { if (node?.complete) setLoaded(true); }}
         />
       </div>
 
