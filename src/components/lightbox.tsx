@@ -7,6 +7,9 @@ export interface LightboxPhoto {
   id: string;
   filename: string;
   selected?: boolean;
+  compositeScore?: number | null;
+  blurScore?: number | null;
+  emotionLabel?: string | null;
   llmScore?: number | null;
   llmSummary?: string | null;
   llmDiscardReason?: string | null;
@@ -14,6 +17,9 @@ export interface LightboxPhoto {
   llmIssues?: string[];
   llmComposition?: string | null;
   llmPoseQuality?: string | null;
+  llmBackgroundQuality?: string | null;
+  llmCategory?: string | null;
+  llmTags?: string[];
 }
 
 interface LightboxProps {
@@ -287,19 +293,48 @@ export function Lightbox({
                 </div>
               )}
 
-              {/* Composición / pose */}
-              {(photo.llmComposition || photo.llmPoseQuality) && (
-                <div className="mt-1.5 flex flex-wrap gap-3">
-                  {photo.llmComposition && (
-                    <span className="text-xs text-white/40">
-                      Composición: <span className="text-white/60">{photo.llmComposition}</span>
+              {/* Detalles técnicos */}
+              <div className="mt-1.5 flex flex-wrap gap-3">
+                {photo.llmComposition && (
+                  <span className="text-xs text-white/40">
+                    Composición: <span className="text-white/60">{photo.llmComposition}</span>
+                  </span>
+                )}
+                {photo.llmPoseQuality && (
+                  <span className="text-xs text-white/40">
+                    Pose: <span className="text-white/60">{photo.llmPoseQuality}</span>
+                  </span>
+                )}
+                {photo.llmBackgroundQuality && (
+                  <span className="text-xs text-white/40">
+                    Fondo: <span className="text-white/60">{photo.llmBackgroundQuality}</span>
+                  </span>
+                )}
+                {photo.blurScore != null && (
+                  <span className="text-xs text-white/40">
+                    Nitidez: <span className="text-white/60">{photo.blurScore.toFixed(1)}/10</span>
+                  </span>
+                )}
+                {photo.emotionLabel && (
+                  <span className="text-xs text-white/40">
+                    Emoción: <span className="text-white/60">{photo.emotionLabel}</span>
+                  </span>
+                )}
+              </div>
+
+              {/* Categoría y tags */}
+              {(photo.llmCategory || (photo.llmTags?.length ?? 0) > 0) && (
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  {photo.llmCategory && (
+                    <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-medium text-white/70">
+                      {photo.llmCategory}
                     </span>
                   )}
-                  {photo.llmPoseQuality && (
-                    <span className="text-xs text-white/40">
-                      Pose: <span className="text-white/60">{photo.llmPoseQuality}</span>
+                  {photo.llmTags?.map((tag, i) => (
+                    <span key={i} className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-white/50">
+                      {tag}
                     </span>
-                  )}
+                  ))}
                 </div>
               )}
             </div>

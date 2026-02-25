@@ -9,7 +9,7 @@ import type { Prisma } from "@prisma/client";
 type PhotoWithSelection = Prisma.PhotoGetPayload<{
   include: { selection: { select: { id: true } } };
 }>;
-type SortMode = "order" | "quality" | "llm";
+type SortMode = "order" | "score" | "category";
 
 function AiBadge({ photo }: { photo: PhotoWithSelection }) {
   // Spinner solo cuando está en cola/procesando activamente
@@ -238,24 +238,42 @@ export function PhotoGrid({
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [sort, setSort] = useState<SortMode>("order");
 
-  const hasAiData = photos.some(
-    (p) => p.aiStatus === "DONE" || p.aiStatus === "FAILED"
-  );
-  const hasLlmData = photos.some((p) => p.llmScore != null);
+  const hasAiData = photos.some((p) => p.aiStatus === "DONE");
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+
+  // Categorías únicas disponibles
+  const categories = useMemo(() => {
+    const cats = new Map<string, number>();
+    for (const p of photos) {
+      if (p.llmCategory) {
+        cats.set(p.llmCategory, (cats.get(p.llmCategory) ?? 0) + 1);
+      }
+    }
+    return Array.from(cats.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count]) => ({ name, count }));
+  }, [photos]);
 
   const sorted = useMemo(() => {
-    if (sort === "quality") {
-      return [...photos].sort(
+    let filtered = categoryFilter
+      ? photos.filter((p) => p.llmCategory === categoryFilter)
+      : photos;
+
+    if (sort === "score") {
+      return [...filtered].sort(
         (a, b) => (b.compositeScore ?? -1) - (a.compositeScore ?? -1)
       );
     }
-    if (sort === "llm") {
-      return [...photos].sort(
-        (a, b) => (b.llmScore ?? -1) - (a.llmScore ?? -1)
-      );
+    if (sort === "category") {
+      return [...filtered].sort((a, b) => {
+        const catA = a.llmCategory ?? "zzz";
+        const catB = b.llmCategory ?? "zzz";
+        if (catA !== catB) return catA.localeCompare(catB);
+        return (b.compositeScore ?? -1) - (a.compositeScore ?? -1);
+      });
     }
-    return photos;
-  }, [photos, sort]);
+    return filtered;
+  }, [photos, sort, categoryFilter]);
 
   // Multi-select state
   const [isSelecting, setIsSelecting] = useState(false);
@@ -352,15 +370,15 @@ export function PhotoGrid({
           </>
         ) : (
           <div className="flex w-full items-center justify-between">
-            {(hasAiData || hasLlmData) && (
+            {hasAiData && (
               <div className="flex flex-wrap items-center gap-2">
                 {(
                   [
-                    { mode: "order" as SortMode, label: "Orden original", show: true },
-                    { mode: "quality" as SortMode, label: "★ Técnica", show: hasAiData },
-                    { mode: "llm" as SortMode, label: "✦ LLM score", show: hasLlmData },
-                  ] as { mode: SortMode; label: string; show: boolean }[]
-                ).filter((x) => x.show).map(({ mode, label }) => (
+                    { mode: "order" as SortMode, label: "Orden original" },
+                    { mode: "score" as SortMode, label: "★ Mejor score" },
+                    { mode: "category" as SortMode, label: "⊞ Categoría" },
+                  ] as { mode: SortMode; label: string }[]
+                ).map(({ mode, label }) => (
                   <button
                     key={mode}
                     onClick={() => setSort(mode)}
@@ -385,34 +403,127 @@ export function PhotoGrid({
         )}
       </div>
 
+      {/* Category filter chips */}
+      {categories.length > 1 && !isSelecting && (
+        <div className="mb-4 flex flex-wrap gap-1.5">
+          <button
+            onClick={() => setCategoryFilter(null)}
+            className={`rounded-full px-2.5 py-1 text-xs transition-colors ${
+              categoryFilter === null
+                ? "bg-foreground text-background"
+                : "bg-muted text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Todas ({photos.length})
+          </button>
+          {categories.map(({ name, count }) => (
+            <button
+              key={name}
+              onClick={() => setCategoryFilter(categoryFilter === name ? null : name)}
+              className={`rounded-full px-2.5 py-1 text-xs transition-colors ${
+                categoryFilter === name
+                  ? "bg-foreground text-background"
+                  : "bg-muted text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {name} ({count})
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Grid */}
-      <div className={sort === "quality"
-        ? "grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"
-        : sort === "llm"
-          ? "grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"
-          : "columns-1 gap-4 sm:columns-2 lg:columns-3 xl:columns-4"
-      }>
-        {sorted.map((photo, i) => (
-          <PhotoCard
-            key={photo.id}
-            photo={photo}
-            index={i}
-            isDeleting={deleting === photo.id}
-            isMasonry={sort === "order"}
-            isSelecting={isSelecting}
-            isSelected={selectedIds.has(photo.id)}
-            onOpen={setLightboxIndex}
-            onToggleSelect={toggleSelect}
-            onDelete={handleDelete}
-          />
-        ))}
-      </div>
+      {sort === "category" && !categoryFilter ? (
+        // Grouped by category with section headers
+        <div className="space-y-6">
+          {categories.map(({ name }) => {
+            const catPhotos = sorted.filter((p) => p.llmCategory === name);
+            if (catPhotos.length === 0) return null;
+            return (
+              <div key={name}>
+                <h3 className="mb-3 text-sm font-semibold capitalize text-foreground">
+                  {name} <span className="font-normal text-muted-foreground">({catPhotos.length})</span>
+                </h3>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                  {catPhotos.map((photo) => {
+                    const globalIndex = sorted.indexOf(photo);
+                    return (
+                      <PhotoCard
+                        key={photo.id}
+                        photo={photo}
+                        index={globalIndex}
+                        isDeleting={deleting === photo.id}
+                        isMasonry={false}
+                        isSelecting={isSelecting}
+                        isSelected={selectedIds.has(photo.id)}
+                        onOpen={setLightboxIndex}
+                        onToggleSelect={toggleSelect}
+                        onDelete={handleDelete}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+          {/* Fotos sin categoría */}
+          {sorted.some((p) => !p.llmCategory) && (
+            <div>
+              <h3 className="mb-3 text-sm font-semibold text-foreground">
+                Sin categoría <span className="font-normal text-muted-foreground">({sorted.filter((p) => !p.llmCategory).length})</span>
+              </h3>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                {sorted.filter((p) => !p.llmCategory).map((photo) => {
+                  const globalIndex = sorted.indexOf(photo);
+                  return (
+                    <PhotoCard
+                      key={photo.id}
+                      photo={photo}
+                      index={globalIndex}
+                      isDeleting={deleting === photo.id}
+                      isMasonry={false}
+                      isSelecting={isSelecting}
+                      isSelected={selectedIds.has(photo.id)}
+                      onOpen={setLightboxIndex}
+                      onToggleSelect={toggleSelect}
+                      onDelete={handleDelete}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className={sort === "order"
+          ? "columns-1 gap-4 sm:columns-2 lg:columns-3 xl:columns-4"
+          : "grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"
+        }>
+          {sorted.map((photo, i) => (
+            <PhotoCard
+              key={photo.id}
+              photo={photo}
+              index={i}
+              isDeleting={deleting === photo.id}
+              isMasonry={sort === "order"}
+              isSelecting={isSelecting}
+              isSelected={selectedIds.has(photo.id)}
+              onOpen={setLightboxIndex}
+              onToggleSelect={toggleSelect}
+              onDelete={handleDelete}
+            />
+          ))}
+        </div>
+      )}
 
       {lightboxIndex !== null && !isSelecting && (
         <Lightbox
           photos={sorted.map((p) => ({
             id: p.id,
             filename: p.originalFilename,
+            compositeScore: p.compositeScore,
+            blurScore: p.blurScore,
+            emotionLabel: p.emotionLabel,
             llmScore: p.llmScore,
             llmSummary: p.llmSummary,
             llmDiscardReason: p.llmDiscardReason,
@@ -420,6 +531,9 @@ export function PhotoGrid({
             llmIssues: p.llmIssues,
             llmComposition: p.llmComposition,
             llmPoseQuality: p.llmPoseQuality,
+            llmBackgroundQuality: p.llmBackgroundQuality,
+            llmCategory: p.llmCategory,
+            llmTags: p.llmTags,
           }))}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}

@@ -45,8 +45,18 @@ export const photoAnalysisSchema = z.object({
   issues: z.array(z.string()).describe("Problemas: ojos cerrados, desenfoque, fondo sucio..."),
   summary: z.string().describe("Una frase corta describiendo la foto en español"),
   category: z
-    .string()
-    .describe("Categoría del momento: ceremonia, recepción, retratos, detalles, preparativos, fiesta, etc."),
+    .enum([
+      "preparativos",
+      "ceremonia",
+      "retratos",
+      "grupo",
+      "recepcion",
+      "fiesta",
+      "detalles",
+      "paisaje",
+      "otro",
+    ])
+    .describe("Categoría del momento. Usa EXACTAMENTE uno de los valores permitidos"),
   tags: z
     .array(z.string())
     .describe("Tags descriptivos: novia, novio, grupo, primer-baile, ramo, anillos, etc."),

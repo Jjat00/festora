@@ -5,6 +5,38 @@ import { getSignedReadUrl } from "@/lib/r2";
 import { analyzeAllPhotos, type PhotoInput } from "@/lib/ai/analyze";
 import type { PhotoAnalysis } from "@/lib/ai/schemas";
 
+const VALID_CATEGORIES = new Set([
+  "preparativos", "ceremonia", "retratos", "grupo",
+  "recepcion", "fiesta", "detalles", "paisaje", "otro",
+]);
+
+/** Normaliza variantes como "Retratos", "retrato", "La Ceremonia" → categoría canónica. */
+function normalizeCategory(raw: string): string {
+  const lower = raw.toLowerCase().trim()
+    .replace(/^(la |el |los |las )/, "")
+    .replace(/s$/, ""); // "retratos" → "retrato"
+
+  // Mapeo de variantes comunes
+  const aliases: Record<string, string> = {
+    retrato: "retratos",
+    preparativo: "preparativos",
+    detalle: "detalles",
+    recepción: "recepcion",
+    baile: "fiesta",
+    "primer baile": "fiesta",
+    brindis: "fiesta",
+    vals: "fiesta",
+    exterior: "paisaje",
+    jardín: "paisaje",
+    jardin: "paisaje",
+    grupal: "grupo",
+    familiar: "grupo",
+  };
+
+  const normalized = aliases[lower] ?? lower + "s"; // re-pluralizar si no hay alias
+  return VALID_CATEGORIES.has(normalized) ? normalized : (VALID_CATEGORIES.has(lower) ? lower : "otro");
+}
+
 /**
  * Analiza fotos con el AI SDK (fire-and-forget).
  * Genera presigned URLs, llama al LLM en batches, y persiste los resultados.
@@ -87,7 +119,7 @@ export async function dispatchPhotoAnalysis(
           llmIssues: result.issues,
           llmTokensUsed: tokensUsed,
           llmAnalyzedAt: now,
-          llmCategory: result.category,
+          llmCategory: normalizeCategory(result.category),
           llmTags: result.tags,
         },
       });
