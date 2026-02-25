@@ -147,6 +147,7 @@ export function GalleryView({
   // Fotos visibles según el tab activo
   const visiblePhotos = useMemo(() => {
     if (activeCategory === null) return photoStates;
+    if (activeCategory === "_favorites") return photoStates.filter((p) => p.selected);
     if (activeCategory === "destacadas") {
       return [...photoStates]
         .filter((p) => p.compositeScore != null)
@@ -167,6 +168,11 @@ export function GalleryView({
         )
       );
       setTotal(result.totalSelected);
+
+      // Si estaba en Mis favoritas y ya no queda ninguna, volver a Todas
+      if (result.totalSelected === 0 && activeCategory === "_favorites") {
+        setActiveCategory(null);
+      }
 
       if (result.totalSelected >= 5 && shouldRecalculate(result.totalSelected)) {
         const orderedIds = await computeSmartOrder(projectId);
@@ -209,6 +215,16 @@ export function GalleryView({
               Todas
               <span className="ml-1.5 opacity-60">{photoStates.length}</span>
             </button>
+
+            {total > 0 && (
+              <button
+                onClick={() => setActiveCategory("_favorites")}
+                className={`${tabBase} ${activeCategory === "_favorites" ? tabActive : tabInactive}`}
+              >
+                ♥ Mis favoritas
+                <span className="ml-1.5 opacity-60">{total}</span>
+              </button>
+            )}
 
             {hasDestacadas && (
               <button
