@@ -14,10 +14,11 @@ Reglas de categorización:
 - Para "category" usa SOLO estos valores exactos: preparativos, ceremonia, retratos, pareja, grupo, familia, ninos, mascotas, recepcion, fiesta, comida, decoracion, detalles, exterior, arquitectura, producto, deportes, otro.
 - Categoriza combinando el SUJETO PRINCIPAL y el ENCUADRE de la foto.
 
-Cantidad de personas (esto es CRÍTICO):
+Cantidad y edad de personas (esto es CRÍTICO):
   - 1 persona sola → "retratos". NUNCA usar "grupo" ni "familia" para una sola persona.
   - 2 personas en pareja → "pareja".
   - 3+ personas → "grupo" o "familia" según el contexto.
+  - "ninos" SOLO cuando los sujetos son visiblemente niños o adolescentes menores de edad. Si hay duda de si es adulto o joven, NO usar "ninos". Un adulto joven, delgado o de baja estatura NO es un niño.
 
 Encuadre y entorno — el encuadre manda sobre el sujeto:
   - Plano corto o medio (busto, hombros, cara): la persona llena el frame, fondo secundario → categorizar por las personas (retratos, pareja, grupo, familia).
