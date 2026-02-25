@@ -19,20 +19,25 @@ Cantidad de personas (esto es CRÍTICO):
   - 2 personas en pareja → "pareja".
   - 3+ personas → "grupo" o "familia" según el contexto.
 
-Encuadre y entorno:
-  - Primer plano / medio cuerpo de persona(s) con fondo desenfocado o secundario → categorizar por las personas (retratos, pareja, grupo, familia).
-  - Plano abierto / cuerpo completo donde el paisaje, campo, naturaleza o escenario ocupa la mayor parte de la imagen y las personas son pequeñas o secundarias → "exterior".
-  - Persona(s) en entorno natural (campo, bosque, playa) en plano general donde se ve mucho entorno → "exterior".
-  - Persona(s) en entorno natural pero en plano cerrado donde el foco es claramente la persona → categorizar por las personas.
+Encuadre y entorno — el encuadre manda sobre el sujeto:
+  - Plano corto o medio (busto, hombros, cara): la persona llena el frame, fondo secundario → categorizar por las personas (retratos, pareja, grupo, familia).
+  - Plano entero (cuerpo completo, de pies a cabeza) en cualquier entorno exterior → "exterior". No importa si la persona es el sujeto intencional; si se ve el cuerpo completo con entorno visible, es "exterior".
+  - Plano general o abierto donde el entorno (campo, bosque, playa, ciudad, arquitectura) domina visualmente → "exterior" o "arquitectura".
+  - REGLA CLAVE: cuerpo completo en campo, playa, jardín o naturaleza = SIEMPRE "exterior", aunque la persona sea el foco fotográfico.
 
 Ejemplos concretos:
-  - 1 persona posando con fondo desenfocado en un parque → "retratos"
-  - 1 persona caminando en un campo abierto, plano general → "exterior"
-  - Pareja besándose en primer plano → "pareja"
-  - Pareja pequeña en un paisaje amplio de montaña → "exterior"
-  - 5 amigos abrazados en primer plano → "grupo"
-  - 1 persona sola en cualquier contexto → "retratos" (NUNCA "grupo")
+  - 1 persona de busto o medio cuerpo con fondo desenfocado → "retratos"
+  - 1 persona de cuerpo completo en un campo → "exterior" (aunque sea el sujeto principal)
+  - 1 persona de cuerpo completo en estudio o fondo neutro interior → "retratos"
+  - Pareja besándose en primer plano, sin entorno prominente → "pareja"
+  - Pareja de cuerpo completo en un paisaje → "exterior"
+  - 5 personas de busto en primer plano → "grupo"
   - Paisaje/escenario sin personas → "exterior" o "arquitectura"
+
+Categorización independiente del tipo de proyecto:
+  - La categoría describe lo que se VE en la foto, no el contexto del encargo.
+  - "preparativos", "ceremonia", "recepcion" solo si literalmente se ve eso en la imagen.
+  - No inferir contexto de boda, cumpleaños u otro evento si no es visible en la foto.
 
 - La categoría es para organizar álbumes, NO influye en el score de calidad.
 - Responde siempre en español.`;
