@@ -49,9 +49,9 @@ function PhotoCard({
 
   return (
     <div
-      className={`group relative cursor-zoom-in overflow-hidden rounded-lg transition-all ${
+      className={`group relative cursor-zoom-in overflow-hidden transition-all ${
         photo.selected
-          ? "ring-2 ring-accent ring-offset-2 ring-offset-background"
+          ? "ring-1 ring-accent/50"
           : ""
       }`}
       style={
@@ -65,7 +65,7 @@ function PhotoCard({
       onClick={() => onOpen(index)}
     >
       <div
-        className="relative w-full overflow-hidden rounded-lg"
+        className="relative w-full overflow-hidden"
         style={{ aspectRatio: ratio }}
       >
         <div
@@ -292,7 +292,7 @@ export function GalleryView({
 
       {/* Grid */}
       <div
-        className="flex flex-wrap gap-3 after:content-[''] after:grow-10"
+        className="flex flex-wrap gap-px after:content-[''] after:grow-10"
         style={
           {
             "--target-height": "clamp(120px, 15vw, 250px)",

@@ -73,7 +73,7 @@ export function SelectionsView({
       </div>
 
       <div
-        className="flex flex-wrap gap-3 after:content-[''] after:grow-10"
+        className="flex flex-wrap gap-px after:content-[''] after:grow-10"
         style={{ "--target-height": "clamp(120px, 15vw, 250px)" } as React.CSSProperties}
       >
         {selections.map((s, i) => {
@@ -84,7 +84,7 @@ export function SelectionsView({
           return (
             <div
               key={s.id}
-              className="overflow-hidden rounded-lg border border-border ring-2 ring-accent"
+              className="overflow-hidden ring-1 ring-accent/50"
               style={{
                 flexGrow: aspect,
                 flexBasis: `calc(${aspect} * var(--target-height, 120px))`,

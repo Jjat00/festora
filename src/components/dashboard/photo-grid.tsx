@@ -116,11 +116,11 @@ function PhotoCard({
 
   return (
     <div
-      className={`group relative overflow-hidden rounded-lg border border-border transition-all ${
+      className={`group relative overflow-hidden border border-border transition-all ${
         isSelected
-          ? "ring-2 ring-foreground"
+          ? "ring-1 ring-foreground/50"
           : photo.selection
-            ? "ring-2 ring-accent"
+            ? "ring-1 ring-accent/50"
             : ""
       }`}
       style={{
@@ -129,7 +129,7 @@ function PhotoCard({
       }}
     >
       <div
-        className={`relative w-full overflow-hidden rounded-lg ${
+        className={`relative w-full overflow-hidden ${
           isSelecting ? "cursor-pointer" : "cursor-zoom-in"
         }`}
         style={{ aspectRatio: ratio }}
@@ -514,7 +514,7 @@ export function PhotoGrid({
                   </span>
                 </h3>
                 <div
-                  className="flex flex-wrap gap-3 after:content-[''] after:grow-10"
+                  className="flex flex-wrap gap-px after:content-[''] after:grow-10"
                   style={{ "--target-height": "clamp(120px, 15vw, 250px)" } as React.CSSProperties}
                 >
                   {catPhotos.map((photo) => {
@@ -550,7 +550,7 @@ export function PhotoGrid({
                 </span>
               </h3>
               <div
-                className="flex flex-wrap gap-3 after:content-[''] after:grow-10"
+                className="flex flex-wrap gap-px after:content-[''] after:grow-10"
                 style={{ "--target-height": "clamp(120px, 15vw, 250px)" } as React.CSSProperties}
               >
                 {sorted
@@ -580,7 +580,7 @@ export function PhotoGrid({
         </div>
       ) : (
         <div
-          className="flex flex-wrap gap-3 after:content-[''] after:grow-10"
+          className="flex flex-wrap gap-px after:content-[''] after:grow-10"
           style={{ "--target-height": "clamp(120px, 15vw, 250px)" } as React.CSSProperties}
         >
           {sorted.map((photo, i) => (

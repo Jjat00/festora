@@ -293,7 +293,7 @@ export function AlbumDetail({
           </div>
         ) : (
           <div
-            className="flex flex-wrap gap-3 after:content-[''] after:grow-10"
+            className="flex flex-wrap gap-px after:content-[''] after:grow-10"
             style={{ "--target-height": "clamp(120px, 15vw, 250px)" } as React.CSSProperties}
           >
             {photos.map((photo, index) => {
@@ -306,7 +306,7 @@ export function AlbumDetail({
               return (
                 <div
                   key={photo.id}
-                  className="group relative cursor-zoom-in overflow-hidden rounded-lg"
+                  className="group relative cursor-zoom-in overflow-hidden"
                   style={{
                     flexGrow: aspect,
                     flexBasis: `calc(${aspect} * var(--target-height, 120px))`,
