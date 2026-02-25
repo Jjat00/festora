@@ -244,7 +244,8 @@ const albumNameSchema = z.object({
 // Cuántas fotos entran en el álbum curado de una categoría
 // Top 30% de las no descartadas, mínimo 5
 function curatedCount(total: number) {
-  return Math.max(5, Math.ceil(total * 0.3));
+  // Top 30%, mínimo 5, nunca más de lo disponible
+  return Math.min(total, Math.max(5, Math.ceil(total * 0.3)));
 }
 
 /**
@@ -277,7 +278,7 @@ export async function generateAlbumSuggestions(
 
   // Total de fotos no descartadas para el álbum highlights
   const totalCurated = groups.reduce((sum, g) => sum + g._count, 0);
-  const highlightsCount = Math.min(30, Math.max(10, Math.ceil(totalCurated * 0.15)));
+  const highlightsCount = Math.min(totalCurated, 30, Math.max(10, Math.ceil(totalCurated * 0.15)));
 
   // Generar nombres creativos para categorías + highlights
   const categoriesForPrompt = [...categories, "_highlights"];
