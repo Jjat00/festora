@@ -90,14 +90,22 @@ export function CinematicHero({ children }: { children: React.ReactNode }) {
     <div
       ref={scope}
       onMouseMove={handleMouseMove}
-      className="relative w-full min-h-svh overflow-hidden bg-[#050505]"
+      className="relative w-full min-h-svh overflow-hidden bg-background transition-colors duration-300"
     >
-      {/* Spotlight Effect that follows the mouse */}
-      <div 
-        className="pointer-events-none absolute inset-0 z-10 transition-opacity duration-300"
+      {/* Spotlight (tema claro: oscuro; tema oscuro: claro) */}
+      <div
+        className="pointer-events-none absolute inset-0 z-10 opacity-0 transition-opacity duration-300 dark:opacity-100"
         style={{
-          background: `radial-gradient(600px circle at ${mousePos.x}px ${mousePos.y}px, rgba(255,255,255,0.06), transparent 40%)`
+          background: `radial-gradient(600px circle at ${mousePos.x}px ${mousePos.y}px, rgba(255,255,255,0.06), transparent 40%)`,
         }}
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute inset-0 z-10 opacity-100 transition-opacity duration-300 dark:opacity-0"
+        style={{
+          background: `radial-gradient(600px circle at ${mousePos.x}px ${mousePos.y}px, rgba(0,0,0,0.04), transparent 40%)`,
+        }}
+        aria-hidden
       />
 
       {/* Abstract Animated Background */}
@@ -109,10 +117,10 @@ export function CinematicHero({ children }: { children: React.ReactNode }) {
         <Particles />
       </motion.div>
 
-      {/* Flash Overlay */}
+      {/* Flash Overlay (blanco en oscuro, negro en claro) */}
       <motion.div
         id="flash"
-        className="absolute inset-0 z-50 bg-white pointer-events-none"
+        className="absolute inset-0 z-50 bg-black pointer-events-none dark:bg-white"
         initial={{ opacity: 0 }}
       />
 
@@ -122,11 +130,11 @@ export function CinematicHero({ children }: { children: React.ReactNode }) {
         className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none"
       >
         <div className="relative w-64 h-64 sm:w-80 sm:h-80 opacity-60">
-          {/* Corner brackets */}
-          <div className="absolute top-0 left-0 w-8 h-8 border-t-[1.5px] border-l-[1.5px] border-white/70" />
-          <div className="absolute top-0 right-0 w-8 h-8 border-t-[1.5px] border-r-[1.5px] border-white/70" />
-          <div className="absolute bottom-0 left-0 w-8 h-8 border-b-[1.5px] border-l-[1.5px] border-white/70" />
-          <div className="absolute bottom-0 right-0 w-8 h-8 border-b-[1.5px] border-r-[1.5px] border-white/70" />
+          {/* Corner brackets — siguen el tema */}
+          <div className="absolute top-0 left-0 w-8 h-8 border-t-[1.5px] border-l-[1.5px] border-foreground/70" />
+          <div className="absolute top-0 right-0 w-8 h-8 border-t-[1.5px] border-r-[1.5px] border-foreground/70" />
+          <div className="absolute bottom-0 left-0 w-8 h-8 border-b-[1.5px] border-l-[1.5px] border-foreground/70" />
+          <div className="absolute bottom-0 right-0 w-8 h-8 border-b-[1.5px] border-r-[1.5px] border-foreground/70" />
 
           {/* Center focus indicator */}
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center gap-1">
@@ -134,21 +142,21 @@ export function CinematicHero({ children }: { children: React.ReactNode }) {
               className={`w-1.5 h-1.5 rounded-full transition-colors duration-200 ${
                 !isFocusing
                   ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"
-                  : "bg-white/50"
+                  : "bg-foreground/50"
               }`}
             />
           </div>
 
           {/* Rule of thirds subtle grid */}
           <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 opacity-20">
-            <div className="border-b border-r border-white/30" />
-            <div className="border-b border-r border-white/30" />
-            <div className="border-b border-white/30" />
-            <div className="border-b border-r border-white/30" />
-            <div className="border-b border-r border-white/30" />
-            <div className="border-b border-white/30" />
-            <div className="border-r border-white/30" />
-            <div className="border-r border-white/30" />
+            <div className="border-b border-r border-foreground/30" />
+            <div className="border-b border-r border-foreground/30" />
+            <div className="border-b border-foreground/30" />
+            <div className="border-b border-r border-foreground/30" />
+            <div className="border-b border-r border-foreground/30" />
+            <div className="border-b border-foreground/30" />
+            <div className="border-r border-foreground/30" />
+            <div className="border-r border-foreground/30" />
             <div className="" />
           </div>
         </div>
