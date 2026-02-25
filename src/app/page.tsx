@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { auth } from "@/auth";
-import Particles from "@/components/particles";
+import { CinematicHero } from "@/components/cinematic-hero";
 import { SignInButton } from "@/components/sign-in-button";
 
 export default async function Home() {
@@ -10,9 +10,7 @@ export default async function Home() {
   return (
     <div className="relative flex flex-col bg-background text-foreground">
       {/* ── Hero ── */}
-      <div className="relative flex min-h-svh flex-col">
-        <Particles />
-
+      <CinematicHero>
         {/* Navbar */}
         <nav className="relative z-10 flex items-center justify-between px-6 py-5 sm:px-10">
           <Image
@@ -94,7 +92,7 @@ export default async function Home() {
             <path d="M12 5v14M5 12l7 7 7-7" />
           </svg>
         </div>
-      </div>
+      </CinematicHero>
 
       {/* ── Valor diferencial ── */}
       <section className="relative z-10 border-t border-border/50 bg-background">
