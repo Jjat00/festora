@@ -95,8 +95,8 @@ export default async function GalleryPage({
           )}
         </div>
 
-        {/* Decorative gradient overlay at bottom */}
-        <div className="absolute bottom-0 left-0 right-0 z-10 h-32 bg-linear-to-t from-background to-transparent" />
+        {/* Decorative gradient overlay at bottom (solo visible en modo oscuro) */}
+        <div className="absolute bottom-0 left-0 right-0 z-10 h-32 bg-linear-to-t from-background to-transparent opacity-0 dark:opacity-100" />
       </div>
 
       <div className="mx-auto max-w-7xl px-4 py-8">
