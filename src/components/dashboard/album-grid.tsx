@@ -7,6 +7,7 @@ import { triggerAlbumGeneration } from "@/lib/actions/photo-actions";
 import type { AlbumSuggestion } from "@prisma/client";
 
 const CATEGORY_LABELS: Record<string, string> = {
+  _highlights: "✦ Selección IA",
   preparativos: "Preparativos",
   ceremonia: "Ceremonia",
   retratos: "Retratos",
@@ -160,7 +161,9 @@ export function AlbumGrid({
             <div className="px-4 py-3">
               <h3 className="font-medium leading-snug">{album.name}</h3>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                {CATEGORY_LABELS[album.category] ?? album.category}
+                {album.category === "_highlights"
+                  ? `${album.photoCount} mejores fotos · IA`
+                  : `${album.photoCount} fotos curadas · ${CATEGORY_LABELS[album.category] ?? album.category}`}
               </p>
             </div>
           </Link>

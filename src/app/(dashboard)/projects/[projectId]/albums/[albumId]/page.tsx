@@ -17,9 +17,15 @@ export default async function AlbumDetailPage({
   });
   if (!album || album.projectId !== projectId) notFound();
 
+  // Álbum highlights: mejores fotos del proyecto sin importar categoría
+  // Álbum por categoría: top 30% sin descartes, limitado a album.photoCount
   const photos = await prisma.photo.findMany({
-    where: { projectId, llmCategory: album.category },
+    where:
+      album.category === "_highlights"
+        ? { projectId, llmDiscardReason: null, compositeScore: { not: null } }
+        : { projectId, llmCategory: album.category, llmDiscardReason: null },
     orderBy: { compositeScore: "desc" },
+    take: album.photoCount,
     include: { selection: { select: { id: true } } },
   });
 

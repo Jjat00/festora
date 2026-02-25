@@ -12,6 +12,7 @@ type PhotoWithSelection = Prisma.PhotoGetPayload<{
 }>;
 
 const CATEGORY_LABELS: Record<string, string> = {
+  _highlights: "✦ Selección IA",
   preparativos: "Preparativos",
   ceremonia: "Ceremonia",
   retratos: "Retratos",

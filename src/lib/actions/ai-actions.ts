@@ -235,17 +235,27 @@ const albumNameSchema = z.object({
   name: z.string().describe("Nombre descriptivo y bonito para el álbum en español"),
 });
 
+// Cuántas fotos entran en el álbum curado de una categoría
+// Top 30% de las no descartadas, mínimo 5
+function curatedCount(total: number) {
+  return Math.max(5, Math.ceil(total * 0.3));
+}
+
 /**
- * Genera álbumes sugeridos a partir de las categorías detectadas en las fotos.
- * Elimina las sugerencias anteriores y crea nuevas.
+ * Genera álbumes curados automáticamente:
+ * - Un álbum por categoría con las mejores fotos (sin descartes, top 30% por score)
+ * - Un álbum "_highlights" con las mejores fotos del proyecto completo
+ *
+ * Diferencia con las categorías (tabs): los álbumes son una selección curada,
+ * no todas las fotos. El cliente ve menos fotos pero mejores.
  */
 export async function generateAlbumSuggestions(
   projectId: string
 ): Promise<{ albums: number }> {
-  // Agrupar fotos por categoría
+  // Fotos no descartadas con score, agrupadas por categoría
   const groups = await prisma.photo.groupBy({
     by: ["llmCategory"],
-    where: { projectId, llmCategory: { not: null } },
+    where: { projectId, llmCategory: { not: null }, llmDiscardReason: null },
     _count: true,
     orderBy: { _count: { llmCategory: "desc" } },
   });
@@ -259,7 +269,12 @@ export async function generateAlbumSuggestions(
 
   const categories = groups.map((g) => g.llmCategory!);
 
-  // Generar nombres descriptivos con LLM
+  // Total de fotos no descartadas para el álbum highlights
+  const totalCurated = groups.reduce((sum, g) => sum + g._count, 0);
+  const highlightsCount = Math.min(30, Math.max(10, Math.ceil(totalCurated * 0.15)));
+
+  // Generar nombres creativos para categorías + highlights
+  const categoriesForPrompt = [...categories, "_highlights"];
   const { output } = await generateText({
     model: getAnalysisModel(),
     output: Output.array({ element: albumNameSchema }),
@@ -267,6 +282,7 @@ export async function generateAlbumSuggestions(
 
 Categorías (usa exactamente estos valores en "category"):
 ${categories.map((c) => `- ${c} (${CATEGORY_LABELS[c] ?? c})`).join("\n")}
+- _highlights (Las mejores fotos del proyecto, selección cruzada)
 
 El nombre debe ser evocador y bonito, no genérico. Ejemplos:
 - ceremonia → "El Sí, Acepto"
@@ -274,14 +290,15 @@ El nombre debe ser evocador y bonito, no genérico. Ejemplos:
 - fiesta → "¡A Celebrar!"
 - retratos → "Momentos Especiales"
 - exterior → "Bajo el Cielo Abierto"
-- grupo → "Todos Juntos"`,
-    maxOutputTokens: 50 * categories.length,
+- grupo → "Todos Juntos"
+- _highlights → "Lo Mejor del Día" (o algo creativo similar)`,
+    maxOutputTokens: 50 * categoriesForPrompt.length,
     temperature: 0.8,
   });
 
-  // Obtener la mejor foto por categoría (cover photo)
+  // La mejor foto por categoría (cover) — solo entre no descartadas
   const coverPhotos = await prisma.photo.findMany({
-    where: { projectId, llmCategory: { in: categories } },
+    where: { projectId, llmCategory: { in: categories }, llmDiscardReason: null },
     orderBy: { compositeScore: "desc" },
     select: { id: true, llmCategory: true },
   });
@@ -293,22 +310,37 @@ El nombre debe ser evocador y bonito, no genérico. Ejemplos:
     }
   }
 
-  // Crear mapa de nombres generados
-  const nameMap = new Map((output ?? []).map((a) => [a.category, a.name]));
-
-  // Eliminar sugerencias anteriores
-  await prisma.albumSuggestion.deleteMany({ where: { projectId } });
-
-  // Crear nuevas sugerencias
-  await prisma.albumSuggestion.createMany({
-    data: groups.map((g) => ({
-      projectId,
-      category: g.llmCategory!,
-      name: nameMap.get(g.llmCategory!) ?? CATEGORY_LABELS[g.llmCategory!] ?? g.llmCategory!,
-      coverPhotoId: coverByCategory.get(g.llmCategory!) ?? null,
-      photoCount: g._count,
-    })),
+  // La mejor foto del proyecto para el highlights (cover)
+  const highlightsCover = await prisma.photo.findFirst({
+    where: { projectId, llmDiscardReason: null, compositeScore: { not: null } },
+    orderBy: { compositeScore: "desc" },
+    select: { id: true },
   });
 
-  return { albums: groups.length };
+  const nameMap = new Map((output ?? []).map((a) => [a.category, a.name]));
+
+  await prisma.albumSuggestion.deleteMany({ where: { projectId } });
+
+  await prisma.albumSuggestion.createMany({
+    data: [
+      // Álbum highlights primero
+      {
+        projectId,
+        category: "_highlights",
+        name: nameMap.get("_highlights") ?? "Lo Mejor del Día",
+        coverPhotoId: highlightsCover?.id ?? null,
+        photoCount: highlightsCount,
+      },
+      // Álbumes por categoría — photoCount refleja las fotos curadas (top 30%)
+      ...groups.map((g) => ({
+        projectId,
+        category: g.llmCategory!,
+        name: nameMap.get(g.llmCategory!) ?? CATEGORY_LABELS[g.llmCategory!] ?? g.llmCategory!,
+        coverPhotoId: coverByCategory.get(g.llmCategory!) ?? null,
+        photoCount: curatedCount(g._count),
+      })),
+    ],
+  });
+
+  return { albums: groups.length + 1 };
 }
