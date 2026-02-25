@@ -1,37 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ParticlesComponent, {
   initParticlesEngine,
 } from "@tsparticles/react";
 import { loadSlim } from "@tsparticles/slim";
 import type { ISourceOptions } from "@tsparticles/engine";
 
-function useIsDark() {
-  const [isDark, setIsDark] = useState(true);
-
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    setIsDark(mq.matches);
-    const handler = (e: MediaQueryListEvent) => setIsDark(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
-
-  return isDark;
-}
+// El hero tiene fondo oscuro fijo (#050505), las partículas siempre claras para verse
+const PARTICLE_COLOR = "#ffffff";
 
 export default function Particles() {
   const [ready, setReady] = useState(false);
-  const isDark = useIsDark();
 
   useEffect(() => {
     initParticlesEngine(async (engine) => {
       await loadSlim(engine);
     }).then(() => setReady(true));
   }, []);
-
-  const color = isDark ? "#ffffff" : "#000000";
 
   const options: ISourceOptions = useMemo(
     () => ({
@@ -45,12 +31,12 @@ export default function Particles() {
           },
         },
         color: {
-          value: color,
+          value: PARTICLE_COLOR,
         },
         links: {
           enable: true,
           distance: 150,
-          color: color,
+          color: PARTICLE_COLOR,
           opacity: 0.07,
           width: 1,
         },
@@ -90,14 +76,13 @@ export default function Particles() {
       },
       detectRetina: true,
     }),
-    [color]
+    []
   );
 
   if (!ready) return null;
 
   return (
     <ParticlesComponent
-      key={color}
       id="hero-particles"
       className="absolute inset-0"
       options={options}
