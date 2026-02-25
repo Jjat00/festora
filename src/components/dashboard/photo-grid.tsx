@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { deletePhoto, deletePhotos } from "@/lib/actions/photo-actions";
+import { toggleSelection } from "@/lib/actions/selection-actions";
 import { Lightbox } from "@/components/lightbox";
 import type { Prisma } from "@prisma/client";
 
@@ -85,9 +86,12 @@ function PhotoCard({
   isMasonry,
   isSelecting,
   isSelected,
+  isFavorited,
+  isFavPending,
   onOpen,
   onToggleSelect,
   onDelete,
+  onToggleFavorite,
 }: {
   photo: PhotoWithSelection;
   index: number;
@@ -95,9 +99,12 @@ function PhotoCard({
   isMasonry: boolean;
   isSelecting: boolean;
   isSelected: boolean;
+  isFavorited: boolean;
+  isFavPending: boolean;
   onOpen: (i: number) => void;
   onToggleSelect: (id: string) => void;
   onDelete: (id: string) => void;
+  onToggleFavorite: (id: string) => void;
 }) {
   const [loaded, setLoaded] = useState(false);
   const ratio =
@@ -202,17 +209,33 @@ function PhotoCard({
         </div>
       )}
 
-      {/* Badges de IA */}
+      {/* Badges de IA — izquierda */}
       {!isSelecting && <AiBadge photo={photo} />}
-      {!isSelecting && <LlmScoreBadge photo={photo} />}
 
-      {/* Favorita indicator */}
-      {photo.selection && !isSelecting && (
-        <div className="absolute right-2 top-2 rounded-full bg-accent p-1">
+      {/* Score badge — top-right */}
+      {!isSelecting && !isFavorited && <LlmScoreBadge photo={photo} />}
+
+      {/* Botón de favorita — top-right, reemplaza el score cuando está activo */}
+      {!isSelecting && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleFavorite(photo.id);
+          }}
+          disabled={isFavPending}
+          className={`absolute right-2 top-2 rounded-full p-1.5 backdrop-blur-sm transition-all ${
+            isFavorited
+              ? "bg-accent text-accent-foreground"
+              : "bg-black/40 text-white/70 opacity-0 group-hover:opacity-100 hover:bg-black/60 hover:text-white"
+          } ${isFavPending ? "opacity-50" : ""}`}
+          aria-label={isFavorited ? "Quitar favorita" : "Marcar como favorita"}
+        >
           <svg
-            className="h-3 w-3 text-accent-foreground"
-            fill="currentColor"
+            className="h-3.5 w-3.5"
             viewBox="0 0 20 20"
+            fill={isFavorited ? "currentColor" : "none"}
+            stroke="currentColor"
+            strokeWidth={1.5}
           >
             <path
               fillRule="evenodd"
@@ -220,7 +243,7 @@ function PhotoCard({
               clipRule="evenodd"
             />
           </svg>
-        </div>
+        </button>
       )}
     </div>
   );
@@ -237,6 +260,11 @@ export function PhotoGrid({
   const [deleting, setDeleting] = useState<string | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [sort, setSort] = useState<SortMode>("order");
+  const [favorites, setFavorites] = useState<Set<string>>(
+    () => new Set(photos.filter((p) => p.selection).map((p) => p.id))
+  );
+  const [favPending, setFavPending] = useState<string | null>(null);
+  const [, startFavTransition] = useTransition();
 
   const hasAiData = photos.some((p) => p.aiStatus === "DONE");
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
@@ -292,6 +320,32 @@ export function PhotoGrid({
   function cancelSelection() {
     setIsSelecting(false);
     setSelectedIds(new Set());
+  }
+
+  function handleFavoriteToggle(photoId: string) {
+    setFavPending(photoId);
+    // Actualización optimista
+    setFavorites((prev) => {
+      const next = new Set(prev);
+      if (next.has(photoId)) next.delete(photoId);
+      else next.add(photoId);
+      return next;
+    });
+    startFavTransition(async () => {
+      try {
+        await toggleSelection(projectId, photoId);
+      } catch {
+        // Revertir si falla
+        setFavorites((prev) => {
+          const next = new Set(prev);
+          if (next.has(photoId)) next.delete(photoId);
+          else next.add(photoId);
+          return next;
+        });
+      } finally {
+        setFavPending(null);
+      }
+    });
   }
 
   async function handleDelete(photoId: string) {
@@ -456,9 +510,12 @@ export function PhotoGrid({
                         isMasonry={false}
                         isSelecting={isSelecting}
                         isSelected={selectedIds.has(photo.id)}
+                        isFavorited={favorites.has(photo.id)}
+                        isFavPending={favPending === photo.id}
                         onOpen={setLightboxIndex}
                         onToggleSelect={toggleSelect}
                         onDelete={handleDelete}
+                        onToggleFavorite={handleFavoriteToggle}
                       />
                     );
                   })}
@@ -484,9 +541,12 @@ export function PhotoGrid({
                       isMasonry={false}
                       isSelecting={isSelecting}
                       isSelected={selectedIds.has(photo.id)}
+                      isFavorited={favorites.has(photo.id)}
+                      isFavPending={favPending === photo.id}
                       onOpen={setLightboxIndex}
                       onToggleSelect={toggleSelect}
                       onDelete={handleDelete}
+                      onToggleFavorite={handleFavoriteToggle}
                     />
                   );
                 })}
@@ -508,9 +568,12 @@ export function PhotoGrid({
               isMasonry={sort === "order"}
               isSelecting={isSelecting}
               isSelected={selectedIds.has(photo.id)}
+              isFavorited={favorites.has(photo.id)}
+              isFavPending={favPending === photo.id}
               onOpen={setLightboxIndex}
               onToggleSelect={toggleSelect}
               onDelete={handleDelete}
+              onToggleFavorite={handleFavoriteToggle}
             />
           ))}
         </div>
