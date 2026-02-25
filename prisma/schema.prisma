@@ -93,33 +93,31 @@ model Photo {
   selection        Selection?
   createdAt        DateTime   @default(now())
 
-  // AI Analysis (null hasta que el worker procese la foto)
+  // AI Analysis (Vercel AI SDK + LLM multimodal)
   aiStatus        AiStatus  @default(PENDING)
   aiProcessedAt   DateTime?
 
-  // Fase 1: calidad técnica
-  blurScore       Float?    // Laplacian variance. Borrosa real < 30. Bokeh: 60-150.
-  brisqueScore    Float?    // BRISQUE. < 30 = buena calidad. 0-100.
-  nimaScore       Float?    // NIMA estética. 0-10. > 5.5 = buena para eventos.
-  compositeScore  Float?    // Score compuesto 0-100. Incluye blur + calidad + emoción.
+  // Scores del LLM
+  blurScore        Float?    // 0-10. 0=muy borrosa, 10=nítida. Bokeh intencional=7+.
+  compositeScore   Float?    // 0-100. Score compuesto de todos los factores.
+  emotionLabel     String?   // Emoción dominante: feliz, neutral, conmovido. Null = sin rostro.
+  emotionValence   Float?    // -1 (negativa) a +1 (positiva). Null = sin rostro.
 
-  // Fase 2: análisis de emociones (DeepFace)
-  emotionLabel    String?   // Emoción dominante: happy, neutral, sad, angry, etc. Null = sin rostro.
-  emotionValence  Float?    // Valencia: -1 (negativa) a +1 (positiva). Null = sin rostro.
-
-  // Fase 3.5: análisis LLM (Claude, GPT, Gemini)
-  llmScore            Float?    // Score 1.0-10.0 del LLM (1 decimal).
-  llmModel            String?   // Modelo usado: e.g. "claude-sonnet-4-6".
-  llmSummary          String?   // Frase de resumen generada por el LLM.
-  llmDiscardReason    String?   // Razón de descarte (null = foto ok).
-  llmBestInGroup      Boolean?  // ¿Es la mejor foto del grupo?
-  llmComposition      String?   // Composición: "rule of thirds", etc.
-  llmPoseQuality      String?   // Calidad de la pose.
-  llmBackgroundQuality String?  // Calidad del fondo.
-  llmHighlights       String[]  // Puntos positivos detectados.
-  llmIssues           String[]  // Problemas detectados.
-  llmTokensUsed       Int?      // Tokens consumidos (para tracking de costo).
-  llmAnalyzedAt       DateTime? // Cuándo se analizó.
+  // Análisis detallado del LLM
+  llmScore             Float?    // 1.0-10.0 calidad general.
+  llmModel             String?   // Modelo usado: "gpt-4o-mini".
+  llmSummary           String?   // Frase de resumen en español.
+  llmDiscardReason     String?   // Razón de descarte (null = foto ok).
+  llmBestInGroup       Boolean?  // ¿Mejor foto del grupo?
+  llmComposition       String?   // "regla de tercios", "centrada", etc.
+  llmPoseQuality       String?   // Calidad de la pose.
+  llmBackgroundQuality String?   // Calidad del fondo.
+  llmHighlights        String[]  // Puntos positivos detectados.
+  llmIssues            String[]  // Problemas detectados.
+  llmTokensUsed        Int?      // Tokens consumidos (tracking de costo).
+  llmAnalyzedAt        DateTime? // Cuándo se analizó.
+  llmCategory          String?   // Categoría: ceremonia, recepción, retratos, etc.
+  llmTags              String[]  // Tags: novia, novio, grupo, primer-baile, etc.
 
   @@index([projectId])
   @@index([projectId, order])

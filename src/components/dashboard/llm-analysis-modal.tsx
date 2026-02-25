@@ -1,55 +1,39 @@
 "use client";
 
 import { useState } from "react";
-import { triggerLlmAnalysis, type LlmModel, type LlmPhotoFilter } from "@/lib/actions/photo-actions";
-
-const MODELS: { id: LlmModel; label: string; pricePerPhoto: number }[] = [
-  { id: "openai/gpt-4.1", label: "GPT-4.1", pricePerPhoto: 0.008 },
-];
-
-const FILTERS: { id: LlmPhotoFilter; label: string; description: string }[] = [
-  { id: "highlighted", label: "Solo destacadas (score > 65)", description: "Analiza únicamente las fotos con mejor puntuación técnica." },
-  { id: "all",         label: "Todas",                        description: "Analiza todas las fotos del proyecto." },
-  { id: "manual",      label: "Selección manual",             description: "Elige manualmente qué fotos analizar." },
-];
+import { triggerProjectAnalysis } from "@/lib/actions/photo-actions";
 
 function formatCost(n: number): string {
   return n < 0.01 ? `< $0.01` : `~$${n.toFixed(2)}`;
 }
 
+const COST_PER_PHOTO = 0.001; // gpt-4o-mini imageDetail:low
+
 export function LlmAnalysisModal({
   projectId,
   totalPhotos,
-  highlightedPhotos,
+  pendingPhotos,
   onClose,
   onSuccess,
 }: {
   projectId: string;
   totalPhotos: number;
-  highlightedPhotos: number;
+  pendingPhotos: number;
   onClose: () => void;
   onSuccess?: (queued: number) => void;
 }) {
-  const [model, setModel] = useState<LlmModel>(MODELS[0].id);
-  const [filter, setFilter] = useState<LlmPhotoFilter>("highlighted");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const selectedModel = MODELS.find((m) => m.id === model)!;
-
-  const photoCount =
-    filter === "highlighted" ? highlightedPhotos :
-    filter === "all"         ? totalPhotos : 0;
-
-  const estimatedCost = photoCount * selectedModel.pricePerPhoto;
+  const estimatedCost = pendingPhotos * COST_PER_PHOTO;
 
   async function handleAnalyze() {
     setLoading(true);
     setError(null);
     try {
-      const result = await triggerLlmAnalysis(projectId, filter, model);
+      const result = await triggerProjectAnalysis(projectId);
       if (result.queued === 0) {
-        setError("No hay fotos que coincidan con los filtros seleccionados.");
+        setError("No hay fotos pendientes de analizar.");
         return;
       }
       onSuccess?.(result.queued);
@@ -70,9 +54,9 @@ export function LlmAnalysisModal({
         {/* Header */}
         <div className="mb-5 flex items-start justify-between">
           <div>
-            <h2 className="text-lg font-semibold">Análisis con LLM</h2>
+            <h2 className="text-lg font-semibold">Análisis con IA</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              El modelo evaluará composición, poses y calidad narrativa.
+              El modelo evaluará calidad, composición, emociones y categoría de cada foto.
             </p>
           </div>
           <button
@@ -86,94 +70,19 @@ export function LlmAnalysisModal({
           </button>
         </div>
 
-        {/* Modelo */}
-        <div className="mb-4">
-          <p className="mb-2 text-sm font-medium">Modelo</p>
-          <div className="flex flex-col gap-2">
-            {MODELS.map((m) => (
-              <label
-                key={m.id}
-                className={`flex cursor-pointer items-center justify-between rounded-lg border px-3 py-2.5 transition-colors ${
-                  model === m.id
-                    ? "border-foreground bg-muted"
-                    : "border-border hover:border-muted-foreground"
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <div
-                    className={`h-3.5 w-3.5 rounded-full border-2 transition-colors ${
-                      model === m.id ? "border-foreground bg-foreground" : "border-muted-foreground"
-                    }`}
-                  />
-                  <span className="text-sm font-medium">{m.label}</span>
-                </div>
-                <span className="text-xs text-muted-foreground">
-                  ${m.pricePerPhoto.toFixed(3)}/foto
-                </span>
-                <input
-                  type="radio"
-                  name="model"
-                  value={m.id}
-                  checked={model === m.id}
-                  onChange={() => setModel(m.id)}
-                  className="sr-only"
-                />
-              </label>
-            ))}
+        {/* Info */}
+        <div className="mb-5 space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Fotos en el proyecto</span>
+            <span className="font-medium">{totalPhotos}</span>
           </div>
-        </div>
-
-        {/* Qué fotos analizar */}
-        <div className="mb-5">
-          <p className="mb-2 text-sm font-medium">¿Qué fotos analizar?</p>
-          <div className="flex flex-col gap-2">
-            {FILTERS.map((f) => {
-              const count = f.id === "highlighted" ? highlightedPhotos : f.id === "all" ? totalPhotos : null;
-              const disabled = f.id === "manual";
-              return (
-                <label
-                  key={f.id}
-                  className={`flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2.5 transition-colors ${
-                    disabled
-                      ? "cursor-not-allowed border-border opacity-50"
-                      : filter === f.id
-                        ? "border-foreground bg-muted"
-                        : "border-border hover:border-muted-foreground"
-                  }`}
-                >
-                  <div className="mt-0.5">
-                    <div
-                      className={`h-3.5 w-3.5 rounded-full border-2 transition-colors ${
-                        filter === f.id && !disabled
-                          ? "border-foreground bg-foreground"
-                          : "border-muted-foreground"
-                      }`}
-                    />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium">{f.label}</span>
-                      {count !== null && (
-                        <span className="shrink-0 text-xs text-muted-foreground">{count} fotos</span>
-                      )}
-                      {disabled && (
-                        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">Pronto</span>
-                      )}
-                    </div>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{f.description}</p>
-                  </div>
-                  <input
-                    type="radio"
-                    name="filter"
-                    value={f.id}
-                    checked={filter === f.id}
-                    disabled={disabled}
-                    onChange={() => !disabled && setFilter(f.id)}
-                    className="sr-only"
-                  />
-                </label>
-              );
-            })}
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Pendientes de analizar</span>
+            <span className="font-medium">{pendingPhotos}</span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Modelo</span>
+            <span className="font-medium">GPT-4o mini</span>
           </div>
         </div>
 
@@ -181,7 +90,7 @@ export function LlmAnalysisModal({
         <div className="mb-5 rounded-lg border border-border bg-muted/40 px-4 py-3">
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">
-              {photoCount} foto{photoCount !== 1 ? "s" : ""} × ${selectedModel.pricePerPhoto.toFixed(3)}
+              {pendingPhotos} foto{pendingPhotos !== 1 ? "s" : ""} × ${COST_PER_PHOTO.toFixed(3)}
             </span>
             <span className="font-semibold tabular-nums">{formatCost(estimatedCost)}</span>
           </div>
@@ -204,7 +113,7 @@ export function LlmAnalysisModal({
           </button>
           <button
             onClick={handleAnalyze}
-            disabled={loading || photoCount === 0}
+            disabled={loading || pendingPhotos === 0}
             className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {loading ? (
@@ -215,7 +124,7 @@ export function LlmAnalysisModal({
             ) : (
               <>
                 <span aria-hidden>✦</span>
-                Analizar{photoCount > 0 ? ` (${photoCount})` : ""}
+                Analizar{pendingPhotos > 0 ? ` (${pendingPhotos})` : ""}
               </>
             )}
           </button>

@@ -5,7 +5,6 @@ import { getUserStorageUsage } from "@/lib/actions/storage-actions";
 import { PhotoGrid } from "@/components/dashboard/photo-grid";
 import { UploadZone } from "@/components/dashboard/upload-zone";
 import { AiStatusBanner } from "@/components/dashboard/ai-status-banner";
-import { AnalyzeButton } from "@/components/dashboard/analyze-button";
 import { LlmAnalysisSection } from "@/components/dashboard/llm-analysis-button";
 
 export default async function PhotosPage({
@@ -32,11 +31,6 @@ export default async function PhotosPage({
     (p) => p.aiStatus === "QUEUED",
   ).length;
 
-  // Fotos destacadas para el LLM (compositeScore >= 65)
-  const highlightedCount = photos.filter(
-    (p) => p.compositeScore != null && p.compositeScore >= 65,
-  ).length;
-
   return (
     <div>
       <UploadZone
@@ -53,24 +47,12 @@ export default async function PhotosPage({
         />
       )}
 
-      {/* Botón manual de análisis — visible cuando hay fotos sin analizar y no hay análisis en curso */}
-      {pendingCount > 0 && processingCount === 0 && photos.length > 0 && (
-        <div className="mb-6 flex items-center justify-between rounded-lg border border-border bg-muted/40 px-4 py-3">
-          <p className="text-sm text-muted-foreground">
-            {pendingCount} foto{pendingCount !== 1 ? "s" : ""} sin analizar
-          </p>
-          <div className="flex items-center gap-3">
-            <AnalyzeButton projectId={projectId} pendingCount={pendingCount} />
-          </div>
-        </div>
-      )}
-
-      {/* Sección LLM — banner de progreso + botón trigger */}
-      {photos.length > 0 && processingCount === 0 && (
+      {/* Sección de análisis IA — botón + banner */}
+      {photos.length > 0 && processingCount === 0 && pendingCount > 0 && (
         <LlmAnalysisSection
           projectId={projectId}
           totalPhotos={photos.length}
-          highlightedPhotos={highlightedCount}
+          pendingPhotos={pendingCount}
         />
       )}
 
