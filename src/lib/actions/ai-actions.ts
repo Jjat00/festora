@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getSignedReadUrl } from "@/lib/r2";
 import { generateText, Output } from "ai";
 import { z } from "zod";
-import { getAnalysisModel } from "@/lib/ai/provider";
+import { getAnalysisModel, getActiveModelId } from "@/lib/ai/provider";
 import { analyzePhotoBatch, type PhotoInput } from "@/lib/ai/analyze";
 import type { PhotoAnalysis } from "@/lib/ai/schemas";
 
@@ -184,7 +184,7 @@ export async function dispatchPhotoAnalysis(
             emotionLabel: result.emotion?.label ?? null,
             emotionValence: result.emotion?.valence ?? null,
             llmScore: result.overallScore,
-            llmModel: "gpt-4o-mini",
+            llmModel: getActiveModelId(),
             llmSummary: result.summary,
             llmDiscardReason: result.discardReason,
             llmBestInGroup: result.bestInGroup,

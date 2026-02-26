@@ -3,12 +3,6 @@
 import { useState } from "react";
 import { triggerProjectAnalysis } from "@/lib/actions/photo-actions";
 
-function formatCost(n: number): string {
-  return n < 0.01 ? `< $0.01` : `~$${n.toFixed(2)}`;
-}
-
-const COST_PER_PHOTO = 0.001; // gpt-4o-mini imageDetail:low
-
 export function LlmAnalysisModal({
   projectId,
   totalPhotos,
@@ -24,8 +18,6 @@ export function LlmAnalysisModal({
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const estimatedCost = pendingPhotos * COST_PER_PHOTO;
 
   async function handleAnalyze() {
     setLoading(true);
@@ -79,20 +71,6 @@ export function LlmAnalysisModal({
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Pendientes de analizar</span>
             <span className="font-medium">{pendingPhotos}</span>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Modelo</span>
-            <span className="font-medium">GPT-4o mini</span>
-          </div>
-        </div>
-
-        {/* Estimación de costo */}
-        <div className="mb-5 rounded-lg border border-border bg-muted/40 px-4 py-3">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">
-              {pendingPhotos} foto{pendingPhotos !== 1 ? "s" : ""} × ${COST_PER_PHOTO.toFixed(3)}
-            </span>
-            <span className="font-semibold tabular-nums">{formatCost(estimatedCost)}</span>
           </div>
         </div>
 
