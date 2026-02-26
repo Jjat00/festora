@@ -35,17 +35,18 @@ export async function GET(
   }
 
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
-  const processing = counts.PENDING + counts.QUEUED;
+  const queued = counts.QUEUED;
   const done = counts.DONE;
   const failed = counts.FAILED;
+  const pending = counts.PENDING;
 
   return NextResponse.json({
     total,
-    processing,
+    queued,
     done,
     failed,
-    breakdown: counts,
-    // true cuando todas las fotos ya tienen resultado
-    complete: total > 0 && processing === 0,
+    pending,
+    // true cuando ya no quedan fotos en cola (el proceso after() terminó)
+    complete: queued === 0,
   });
 }

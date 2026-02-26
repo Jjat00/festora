@@ -152,9 +152,17 @@ export async function dispatchPhotoAnalysis(
       results = response.results;
       tokensUsed = response.tokensUsed;
     } catch (err) {
-      console.error(`[ai] Batch ${i / BATCH_SIZE + 1} error:`, err);
-      await markBatchFailed(batchPhotos.map((p) => p.id));
-      continue;
+      console.error(`[ai] Batch ${i / BATCH_SIZE + 1} error, retrying once…`, err);
+      // Auto-retry once before marking FAILED
+      try {
+        const response = await analyzePhotoBatch(batchInputs);
+        results = response.results;
+        tokensUsed = response.tokensUsed;
+      } catch (retryErr) {
+        console.error(`[ai] Batch ${i / BATCH_SIZE + 1} retry failed:`, retryErr);
+        await markBatchFailed(batchPhotos.map((p) => p.id));
+        continue;
+      }
     }
 
     console.log(`[ai] Batch ${i / BATCH_SIZE + 1}: ${results.length}/${batchPhotos.length} | ${tokensUsed} tokens`);

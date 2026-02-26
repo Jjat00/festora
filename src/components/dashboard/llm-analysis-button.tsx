@@ -1,10 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { LlmAnalysisModal } from "@/components/dashboard/llm-analysis-modal";
-import { LlmStatusBanner } from "@/components/dashboard/llm-status-banner";
-
-type AnalysisJob = { queued: number; since: string };
 
 export function LlmAnalysisSection({
   projectId,
@@ -15,39 +13,29 @@ export function LlmAnalysisSection({
   totalPhotos: number;
   pendingPhotos: number;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [job, setJob] = useState<AnalysisJob | null>(null);
 
-  function handleSuccess(queued: number) {
-    setJob({ queued, since: new Date().toISOString() });
+  function handleSuccess() {
     setOpen(false);
+    // Page reloads → server detects QUEUED → AiStatusBanner appears
+    router.refresh();
   }
 
   return (
     <>
-      {job && (
-        <LlmStatusBanner
-          projectId={projectId}
-          queued={job.queued}
-          since={job.since}
-          onComplete={() => setJob(null)}
-        />
-      )}
-
-      {!job && (
-        <div className="mb-6 flex items-center justify-between rounded-lg border border-border bg-muted/40 px-4 py-3">
-          <p className="text-sm text-muted-foreground">
-            Análisis con IA multimodal
-          </p>
-          <button
-            onClick={() => setOpen(true)}
-            className="flex cursor-pointer items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-foreground hover:bg-muted"
-          >
-            <span aria-hidden>✦</span>
-            Analizar con IA
-          </button>
-        </div>
-      )}
+      <div className="mb-6 flex items-center justify-between rounded-lg border border-border bg-muted/40 px-4 py-3">
+        <p className="text-sm text-muted-foreground">
+          Análisis con IA multimodal
+        </p>
+        <button
+          onClick={() => setOpen(true)}
+          className="flex cursor-pointer items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-foreground hover:bg-muted"
+        >
+          <span aria-hidden>✦</span>
+          Analizar con IA
+        </button>
+      </div>
 
       {open && (
         <LlmAnalysisModal

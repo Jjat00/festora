@@ -163,6 +163,39 @@ export async function triggerProjectAnalysis(projectId: string): Promise<{ queue
 }
 
 /**
+ * Resetea fotos QUEUED atascadas (el proceso after() murió) y relanza el análisis.
+ * Marca las QUEUED como FAILED, luego triggerProjectAnalysis las recoge.
+ */
+export async function restartStalledAnalysis(projectId: string): Promise<{ queued: number }> {
+  const userId = await getAuthenticatedUserId();
+
+  const project = await prisma.project.findUnique({
+    where: { id: projectId, userId },
+    select: { id: true },
+  });
+  if (!project) throw new Error("Project not found");
+
+  // Reset QUEUED → FAILED so triggerProjectAnalysis picks them up
+  await prisma.photo.updateMany({
+    where: { projectId, aiStatus: "QUEUED" },
+    data: { aiStatus: "FAILED" },
+  });
+
+  // Now trigger normally (picks up PENDING + FAILED)
+  const photos = await prisma.photo.findMany({
+    where: { projectId, aiStatus: { in: ["PENDING", "FAILED"] } },
+    select: { id: true, objectKey: true, thumbnailKey: true },
+  });
+
+  if (photos.length === 0) return { queued: 0 };
+
+  after(() => dispatchPhotoAnalysis(photos));
+
+  revalidatePath(`/projects/${projectId}/photos`);
+  return { queued: photos.length };
+}
+
+/**
  * Genera álbumes sugeridos a partir de las categorías de IA.
  * Requiere que las fotos ya hayan sido analizadas.
  */

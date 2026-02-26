@@ -14,7 +14,7 @@ export function LlmAnalysisModal({
   totalPhotos: number;
   pendingPhotos: number;
   onClose: () => void;
-  onSuccess?: (queued: number) => void;
+  onSuccess?: () => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,8 +28,7 @@ export function LlmAnalysisModal({
         setError("No hay fotos pendientes de analizar.");
         return;
       }
-      onSuccess?.(result.queued);
-      onClose();
+      onSuccess?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido");
     } finally {

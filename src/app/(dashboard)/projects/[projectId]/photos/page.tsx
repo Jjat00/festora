@@ -21,14 +21,14 @@ export default async function PhotosPage({
     getUserStorageUsage(),
   ]);
 
-  // Fotos esperando ser analizadas (nunca se han procesado o fallaron)
-  const pendingCount = photos.filter(
-    (p) => p.aiStatus === "PENDING" || p.aiStatus === "FAILED",
+  // Fotos actualmente en cola (being processed by after())
+  const queuedCount = photos.filter(
+    (p) => p.aiStatus === "QUEUED",
   ).length;
 
-  // Fotos actualmente en proceso (ya en cola o procesando)
-  const processingCount = photos.filter(
-    (p) => p.aiStatus === "QUEUED",
+  // Fotos pendientes de analizar o que fallaron (candidatas para análisis)
+  const pendingOrFailedCount = photos.filter(
+    (p) => p.aiStatus === "PENDING" || p.aiStatus === "FAILED",
   ).length;
 
   return (
@@ -40,19 +40,19 @@ export default async function PhotosPage({
       />
 
       {/* Banner de progreso — visible mientras hay fotos en cola */}
-      {processingCount > 0 && (
+      {queuedCount > 0 && (
         <AiStatusBanner
           projectId={projectId}
-          initialProcessing={processingCount}
+          initialQueued={queuedCount}
         />
       )}
 
-      {/* Sección de análisis IA — botón + banner */}
-      {photos.length > 0 && processingCount === 0 && pendingCount > 0 && (
+      {/* Sección de análisis IA — visible si hay fotos por analizar */}
+      {photos.length > 0 && pendingOrFailedCount > 0 && queuedCount === 0 && (
         <LlmAnalysisSection
           projectId={projectId}
           totalPhotos={photos.length}
-          pendingPhotos={pendingCount}
+          pendingPhotos={pendingOrFailedCount}
         />
       )}
 
