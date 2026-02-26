@@ -15,23 +15,29 @@ Reglas de categorización:
 - Categoriza combinando el SUJETO PRINCIPAL y el ENCUADRE de la foto.
 
 Cantidad y edad de personas (esto es CRÍTICO):
-  - 1 persona sola → "retratos". NUNCA usar "grupo" ni "familia" para una sola persona.
-  - 2 personas en pareja → "pareja".
+  - 1 persona sola → "retratos" SOLO si es plano corto/medio (cara, busto, medio cuerpo). Si se ve el cuerpo completo → ver regla de encuadre abajo.
+  - 2 personas en pareja → "pareja" SOLO si es plano corto/medio. Si se ve el cuerpo completo → ver regla de encuadre abajo.
   - 3+ personas → "grupo" o "familia" según el contexto.
   - "ninos" SOLO cuando los sujetos son visiblemente niños o adolescentes menores de edad. Si hay duda de si es adulto o joven, NO usar "ninos". Un adulto joven, delgado o de baja estatura NO es un niño.
 
-Encuadre y entorno — el encuadre manda sobre el sujeto:
-  - Plano corto o medio (busto, hombros, cara): la persona llena el frame, fondo secundario → categorizar por las personas (retratos, pareja, grupo, familia).
-  - Plano entero (cuerpo completo, de pies a cabeza) en cualquier entorno exterior → "exterior". No importa si la persona es el sujeto intencional; si se ve el cuerpo completo con entorno visible, es "exterior".
-  - Plano general o abierto donde el entorno (campo, bosque, playa, ciudad, arquitectura) domina visualmente → "exterior" o "arquitectura".
-  - REGLA CLAVE: cuerpo completo en campo, playa, jardín o naturaleza = SIEMPRE "exterior", aunque la persona sea el foco fotográfico.
+⚠️ REGLA PRINCIPAL DE ENCUADRE (prioridad máxima, aplica ANTES que cualquier otra regla):
+  "retratos" es EXCLUSIVAMENTE para planos cortos y medios donde la persona llena el frame (cara, busto, de cintura para arriba) y el fondo es secundario o está desenfocado.
+  Si se ven las piernas, los pies o el cuerpo completo de la persona → NO es "retratos", es "exterior".
+  NO EXISTE el concepto de "retrato de cuerpo completo". Cuerpo completo = "exterior".
+
+Detalle por tipo de encuadre:
+  - Plano corto o medio (busto, hombros, cara, cintura para arriba): la persona llena el frame → categorizar por personas (retratos, pareja, grupo, familia).
+  - Plano entero (se ven piernas/pies, cuerpo completo) → SIEMPRE "exterior", sin importar si la persona es el sujeto principal, si mira a cámara, o si posa intencionalmente. El encuadre manda.
+  - Plano general donde el entorno domina → "exterior" o "arquitectura".
 
 Ejemplos concretos:
-  - 1 persona de busto o medio cuerpo con fondo desenfocado → "retratos"
-  - 1 persona de cuerpo completo en un campo → "exterior" (aunque sea el sujeto principal)
-  - 1 persona de cuerpo completo en estudio o fondo neutro interior → "retratos"
-  - Pareja besándose en primer plano, sin entorno prominente → "pareja"
-  - Pareja de cuerpo completo en un paisaje → "exterior"
+  - 1 persona de busto con fondo desenfocado → "retratos"
+  - 1 persona de cintura para arriba en interior → "retratos"
+  - 1 persona de cuerpo completo en un campo → "exterior" (NUNCA "retratos")
+  - 1 persona de cuerpo completo en una calle → "exterior" (NUNCA "retratos")
+  - 1 persona de cuerpo completo en estudio o fondo neutro → "exterior"
+  - Pareja abrazada en primer plano, sin entorno → "pareja"
+  - Pareja de cuerpo completo caminando → "exterior" (NUNCA "pareja")
   - 5 personas de busto en primer plano → "grupo"
   - Paisaje/escenario sin personas → "exterior" o "arquitectura"
 
