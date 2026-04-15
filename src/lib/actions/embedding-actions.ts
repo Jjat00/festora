@@ -9,6 +9,7 @@ import { generatePhotoEmbedding } from "@/lib/ai/embeddings";
 
 const BATCH_SIZE = 5;
 const MAX_CONCURRENT = 3;
+const STALE_QUEUED_MINUTES = 2;
 
 interface PhotoToEmbed {
   id: string;
@@ -40,7 +41,8 @@ async function processPhoto(photo: PhotoToEmbed): Promise<boolean> {
       `UPDATE "Photo"
        SET embedding = $1::vector,
            "embeddingStatus" = 'DONE'::"EmbeddingStatus",
-           "embeddingDescription" = $2
+           "embeddingDescription" = $2,
+           "embeddingUpdatedAt" = NOW()
        WHERE id = $3`,
       vectorStr,
       description,
@@ -50,10 +52,14 @@ async function processPhoto(photo: PhotoToEmbed): Promise<boolean> {
     return true;
   } catch (err) {
     console.error(`[embedding] Photo ${photo.id} failed:`, err);
-    await prisma.photo.update({
-      where: { id: photo.id },
-      data: { embeddingStatus: "FAILED" },
-    });
+    try {
+      await prisma.photo.update({
+        where: { id: photo.id },
+        data: { embeddingStatus: "FAILED", embeddingUpdatedAt: new Date() },
+      });
+    } catch (updateErr) {
+      console.error(`[embedding] Failed to mark ${photo.id} as FAILED:`, updateErr);
+    }
     return false;
   }
 }
@@ -71,7 +77,7 @@ export async function dispatchEmbeddingGeneration(
   // Marcar todas como QUEUED de inmediato — evita que polling re-dispare
   await prisma.photo.updateMany({
     where: { id: { in: photos.map((p) => p.id) } },
-    data: { embeddingStatus: "QUEUED" },
+    data: { embeddingStatus: "QUEUED", embeddingUpdatedAt: new Date() },
   });
 
   console.log(`[embedding] Starting generation for ${photos.length} photos`);
@@ -130,11 +136,27 @@ export async function backfillProjectEmbeddings(
 /**
  * Retorna el progreso de generación de embeddings de un proyecto.
  * Auto-dispara en background las fotos PENDING (proyectos viejos o uploads
- * cuyo dispatch original murió). El cliente solo polea, no necesita botón.
+ * cuyo dispatch original murió) y rescata QUEUED stuck (más de N min sin
+ * actualizarse → el dispatcher murió, los reintentamos).
  */
 export async function getEmbeddingProgress(
   projectId: string,
 ): Promise<{ done: number; total: number; failed: number }> {
+  // Rescatar QUEUED stuck: si llevan más de STALE_QUEUED_MINUTES sin actualizarse,
+  // el dispatcher anterior murió. Los reseteamos a PENDING para reintento.
+  const staleThreshold = new Date(Date.now() - STALE_QUEUED_MINUTES * 60 * 1000);
+  await prisma.photo.updateMany({
+    where: {
+      projectId,
+      embeddingStatus: "QUEUED",
+      OR: [
+        { embeddingUpdatedAt: null },
+        { embeddingUpdatedAt: { lt: staleThreshold } },
+      ],
+    },
+    data: { embeddingStatus: "PENDING" },
+  });
+
   const groups = await prisma.photo.groupBy({
     by: ["embeddingStatus"],
     where: { projectId },
@@ -150,11 +172,13 @@ export async function getEmbeddingProgress(
     if (g.embeddingStatus === "FAILED") failed = g._count;
   }
 
-  // Auto-dispatch: si hay fotos PENDING (nunca arrancadas), las disparamos
-  // en background. QUEUED ya están en proceso, así que no las tocamos.
+  // Auto-dispatch: si hay fotos PENDING (nunca arrancadas o rescatadas),
+  // las disparamos en background. Limitado a CHUNK_SIZE para que cada dispatch
+  // termine rápido y sea robusto a crashes.
   const pending = await prisma.photo.findMany({
     where: { projectId, embeddingStatus: "PENDING" },
     select: { id: true, objectKey: true, thumbnailKey: true },
+    take: BATCH_SIZE * 2, // procesa hasta 10 por ciclo de polling (~5s)
   });
 
   if (pending.length > 0) {

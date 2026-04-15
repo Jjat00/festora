@@ -142,6 +142,7 @@ model Photo {
   embedding            Unsupported("vector(768)")?
   embeddingStatus      EmbeddingStatus @default(PENDING)
   embeddingDescription String?
+  embeddingUpdatedAt   DateTime?
 
   @@index([projectId])
   @@index([projectId, order])
