@@ -457,7 +457,6 @@ export function PhotoGrid({
                 onResults={setSearchResults}
                 onSearching={setIsSearching}
                 searchFn={searchFn}
-                placeholder="Buscar fotos..."
               />
               <button
                 onClick={() => setIsSelecting(true)}

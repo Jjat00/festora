@@ -8,21 +8,34 @@ interface SearchBarProps<T> {
   onResults: (results: T[] | null) => void;
   onSearching: (isSearching: boolean) => void;
   searchFn: (query: string) => Promise<T[]>;
-  placeholder?: string;
+  examples?: string[];
 }
 
 const POLL_INTERVAL_MS = 5000;
+const EXAMPLE_ROTATION_MS = 3500;
+
+const DEFAULT_EXAMPLES = [
+  "Ej: novia bailando con su padre",
+  "Ej: primer beso de los novios",
+  "Ej: decoración de mesa con flores",
+  "Ej: grupo familiar al aire libre",
+  "Ej: niños jugando en la fiesta",
+  "Ej: detalles del anillo y ramo",
+  "Ej: brindis con copas en alto",
+  "Ej: pareja al atardecer",
+];
 
 export function SearchBar<T>({
   projectId,
   onResults,
   onSearching,
   searchFn,
-  placeholder = "Buscar fotos...",
+  examples = DEFAULT_EXAMPLES,
 }: SearchBarProps<T>) {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number; failed: number } | null>(null);
+  const [exampleIndex, setExampleIndex] = useState(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const ready = progress !== null && progress.total > 0 && progress.done + progress.failed >= progress.total;
@@ -54,6 +67,15 @@ export function SearchBar<T>({
       if (pollTimer) clearTimeout(pollTimer);
     };
   }, [projectId]);
+
+  // Rotar ejemplos del placeholder cuando no hay query escrita
+  useEffect(() => {
+    if (query || !ready || examples.length <= 1) return;
+    const interval = setInterval(() => {
+      setExampleIndex((i) => (i + 1) % examples.length);
+    }, EXAMPLE_ROTATION_MS);
+    return () => clearInterval(interval);
+  }, [query, ready, examples.length]);
 
   const doSearch = useCallback(
     async (text: string) => {
@@ -106,7 +128,7 @@ export function SearchBar<T>({
 
   const disabled = !ready;
   const dynamicPlaceholder = ready
-    ? placeholder
+    ? examples[exampleIndex]
     : `Preparando búsqueda… ${progress!.done}/${progress!.total}`;
 
   return (

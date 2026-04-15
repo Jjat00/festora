@@ -267,7 +267,6 @@ export function GalleryView({
             onResults={setSearchResults}
             onSearching={setIsSearching}
             searchFn={searchFn}
-            placeholder="Buscar fotos..."
           />
           {/* Contador de favoritas — mobile */}
           <div className="shrink-0 rounded-full bg-accent px-3 py-1 text-xs font-medium text-accent-foreground sm:hidden">
