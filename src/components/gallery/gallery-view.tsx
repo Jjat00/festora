@@ -5,6 +5,8 @@ import {
   toggleSelection,
   computeSmartOrder,
 } from "@/lib/actions/selection-actions";
+import { searchGalleryPhotos, type GallerySearchResult } from "@/lib/actions/search-actions";
+import { SearchBar } from "@/components/search-bar";
 import { Lightbox } from "@/components/lightbox";
 
 interface GalleryPhoto {
@@ -132,6 +134,12 @@ export function GalleryView({
   totalSelected: number;
   isLocked: boolean;
 }) {
+  const [searchResults, setSearchResults] = useState<GallerySearchResult[] | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchFn = useCallback(
+    (query: string) => searchGalleryPhotos(projectId, query),
+    [projectId],
+  );
   const [photoStates, setPhotoStates] = useState(photos);
   const [total, setTotal] = useState(initialTotal);
   const [isPending, startTransition] = useTransition();
@@ -169,8 +177,26 @@ export function GalleryView({
     [photoStates],
   );
 
-  // Fotos visibles según el tab activo
+  // Fotos visibles según el tab activo o los resultados de búsqueda
   const visiblePhotos = useMemo(() => {
+    // Cuando hay búsqueda activa, mapear resultados a GalleryPhoto
+    if (searchResults !== null) {
+      const stateMap = new Map(photoStates.map((p) => [p.id, p]));
+      return searchResults.map((r) => {
+        const existing = stateMap.get(r.id);
+        return {
+          id: r.id,
+          thumbnailKey: r.thumbnailKey,
+          filename: existing?.filename ?? r.originalFilename,
+          selected: existing?.selected ?? r.selected,
+          width: r.width,
+          height: r.height,
+          category: r.llmCategory,
+          compositeScore: r.compositeScore,
+        };
+      });
+    }
+
     if (activeCategory === null) return photoStates;
     if (activeCategory === "_favorites")
       return photoStates.filter((p) => p.selected);
@@ -181,7 +207,7 @@ export function GalleryView({
         .slice(0, destacadasCount);
     }
     return photoStates.filter((p) => p.category === activeCategory);
-  }, [photoStates, activeCategory, destacadasCount]);
+  }, [photoStates, activeCategory, destacadasCount, searchResults]);
 
   function handleToggle(photoId: string) {
     if (isLocked) return;
@@ -232,73 +258,91 @@ export function GalleryView({
 
   return (
     <div>
-      {/* Barra sticky: tabs de categoría + contador */}
+      {/* Barra sticky: búsqueda + tabs de categoría + contador */}
       <div className="sticky top-0 z-10 mb-6 border-b border-border bg-background/90 backdrop-blur-sm">
-        {/* Contador de favoritas — fila propia en mobile, inline en desktop */}
-        <div className="flex items-center justify-between px-3 pt-3 pb-1 sm:hidden">
-          <span className="text-xs font-medium text-muted-foreground">Categorías</span>
-          <div className="rounded-full bg-accent px-3 py-1 text-xs font-medium text-accent-foreground">
+        {/* Barra de búsqueda */}
+        <div className="flex items-center justify-between gap-3 px-3 pt-3 pb-1">
+          <SearchBar
+            onResults={setSearchResults}
+            onSearching={setIsSearching}
+            searchFn={searchFn}
+            placeholder="Buscar fotos..."
+          />
+          {/* Contador de favoritas — mobile */}
+          <div className="shrink-0 rounded-full bg-accent px-3 py-1 text-xs font-medium text-accent-foreground sm:hidden">
             {total} favorita{total !== 1 && "s"}
           </div>
         </div>
 
-        <div className="flex items-center gap-3 px-1 pb-3 pt-1 sm:py-3">
-          {/* Tabs — scrollables en móvil con fade */}
-          <div className="relative min-w-0 flex-1">
-            <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
-              <button
-                onClick={() => setActiveCategory(null)}
-                className={`${tabBase} ${activeCategory === null ? tabActive : tabInactive}`}
-              >
-                Todas
-                <span className="ml-1.5 opacity-60">{photoStates.length}</span>
-              </button>
-
-              {total > 0 && (
+        {/* Tabs de categoría — ocultas durante búsqueda */}
+        {searchResults === null && (
+          <div className="flex items-center gap-3 px-1 pb-3 pt-1 sm:py-3">
+            <div className="relative min-w-0 flex-1">
+              <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
                 <button
-                  onClick={() => setActiveCategory("_favorites")}
-                  className={`${tabBase} ${activeCategory === "_favorites" ? tabActive : tabInactive}`}
+                  onClick={() => setActiveCategory(null)}
+                  className={`${tabBase} ${activeCategory === null ? tabActive : tabInactive}`}
                 >
-                  ♥ Mis favoritas
-                  <span className="ml-1.5 opacity-60">{total}</span>
+                  Todas
+                  <span className="ml-1.5 opacity-60">{photoStates.length}</span>
                 </button>
-              )}
 
-              {hasDestacadas && (
-                <button
-                  onClick={() => setActiveCategory("destacadas")}
-                  className={`${tabBase} ${activeCategory === "destacadas" ? tabActive : tabInactive}`}
-                >
-                  ✦ Destacadas
-                </button>
-              )}
+                {total > 0 && (
+                  <button
+                    onClick={() => setActiveCategory("_favorites")}
+                    className={`${tabBase} ${activeCategory === "_favorites" ? tabActive : tabInactive}`}
+                  >
+                    ♥ Mis favoritas
+                    <span className="ml-1.5 opacity-60">{total}</span>
+                  </button>
+                )}
 
-              {categories.map((cat) => (
-                <button
-                  key={cat.name}
-                  onClick={() => setActiveCategory(cat.name)}
-                  className={`${tabBase} ${activeCategory === cat.name ? tabActive : tabInactive}`}
-                >
-                  {capitalize(cat.name)}
-                  <span className="ml-1.5 opacity-60">{cat.count}</span>
-                </button>
-              ))}
+                {hasDestacadas && (
+                  <button
+                    onClick={() => setActiveCategory("destacadas")}
+                    className={`${tabBase} ${activeCategory === "destacadas" ? tabActive : tabInactive}`}
+                  >
+                    ✦ Destacadas
+                  </button>
+                )}
+
+                {categories.map((cat) => (
+                  <button
+                    key={cat.name}
+                    onClick={() => setActiveCategory(cat.name)}
+                    className={`${tabBase} ${activeCategory === cat.name ? tabActive : tabInactive}`}
+                  >
+                    {capitalize(cat.name)}
+                    <span className="ml-1.5 opacity-60">{cat.count}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="pointer-events-none absolute right-0 top-0 h-full w-8 bg-gradient-to-l from-background/90 to-transparent sm:hidden" />
             </div>
-            {/* Fade derecho para indicar scroll */}
-            <div className="pointer-events-none absolute right-0 top-0 h-full w-8 bg-gradient-to-l from-background/90 to-transparent sm:hidden" />
-          </div>
 
-          {/* Contador de favoritas — solo visible en desktop */}
-          <div className="hidden shrink-0 rounded-full bg-accent px-3 py-1 text-sm font-medium text-accent-foreground sm:block">
-            {total} favorita{total !== 1 && "s"}
+            {/* Contador de favoritas — desktop */}
+            <div className="hidden shrink-0 rounded-full bg-accent px-3 py-1 text-sm font-medium text-accent-foreground sm:block">
+              {total} favorita{total !== 1 && "s"}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Indicador de resultados de búsqueda */}
+        {searchResults !== null && (
+          <div className="px-3 pb-2 text-xs text-muted-foreground">
+            {isSearching
+              ? "Buscando..."
+              : `${searchResults.length} resultado${searchResults.length !== 1 ? "s" : ""}`}
+          </div>
+        )}
       </div>
 
-      {/* Mensaje cuando una categoría no tiene fotos */}
-      {visiblePhotos.length === 0 && (
+      {/* Mensaje cuando no hay fotos */}
+      {visiblePhotos.length === 0 && !isSearching && (
         <p className="py-20 text-center text-sm text-muted-foreground">
-          No hay fotos en esta categoría
+          {searchResults !== null
+            ? "No se encontraron fotos para esta búsqueda"
+            : "No hay fotos en esta categoría"}
         </p>
       )}
 

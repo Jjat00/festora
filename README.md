@@ -13,6 +13,7 @@ Festora incluye **inteligencia artificial integrada** para mejorar el flujo de t
 | **Sugerencias de álbum**                 | A partir de las categorías detectadas, la IA genera nombres creativos para álbumes y propone una selección "highlights" (mejores fotos del proyecto).                                                                    |
 | **Orden inteligente en la galería**      | Cuando el cliente marca favoritas, el orden de la galería se reordena según sus preferencias (tags, categorías, emociones y calidad) para mostrar primero las fotos más afines.                                          |
 | **Frase de portada**                     | Generación de una frase poética para la portada de la galería según el tipo de proyecto (boda, XV años, retrato, etc.) y una idea opcional del fotógrafo.                                                                |
+| **Búsqueda semántica de fotos**          | Búsqueda por texto natural ("novia bailando", "decoración de mesa") usando embeddings multimodales de **Gemini Embedding 2** (texto + imagen) y **pgvector**. Disponible para fotógrafo (dashboard) y cliente (galería). |
 
 La IA se ejecuta en la app con **Vercel AI SDK** y modelos multimodales (OpenAI, Google). Opcionalmente puedes usar el microservicio **festora-vision-api** para análisis técnico adicional (blur, calidad BRISQUE/NIMA, emociones con DeepFace). Ver [Análisis con IA](#análisis-con-ia) más abajo.
 
@@ -45,7 +46,8 @@ Completa las variables en `.env`:
 | `AUTH_GOOGLE_ID`                                  | Google OAuth Client ID                                        |
 | `AUTH_GOOGLE_SECRET`                              | Google OAuth Client Secret                                    |
 | `R2_*`                                            | Credenciales de Cloudflare R2                                 |
-| `OPENAI_API_KEY` / `GOOGLE_GENERATIVE_AI_API_KEY` | Para features de IA (ver [Análisis con IA](#análisis-con-ia)) |
+| `OPENAI_API_KEY` / `GOOGLE_GENERATIVE_AI_API_KEY` | Para features de IA (ver [Análisis con IA](#análisis-con-ia))                                                                       |
+| `GOOGLE_GENERATIVE_AI_API_KEY`                    | También se usa para **Gemini Embedding 2** (búsqueda semántica de fotos). La misma key del análisis IA sirve si el modelo está habilitado en tu Google Cloud. |
 
 ### 3. Base de datos
 

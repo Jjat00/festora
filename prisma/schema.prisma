@@ -1,10 +1,12 @@
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
 }
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 // Auth.js v5 Models
@@ -134,6 +136,10 @@ model Photo {
   llmCategory          String?   // Categoría: ceremonia, recepción, retratos, etc.
   llmTags              String[]  // Tags: novia, novio, grupo, primer-baile, etc.
 
+  // Embedding multimodal (Gemini Embedding 2 + pgvector)
+  embedding            Unsupported("vector(768)")?
+  embeddingStatus      EmbeddingStatus @default(PENDING)
+
   @@index([projectId])
   @@index([projectId, order])
   @@index([projectId, aiStatus])
@@ -155,6 +161,12 @@ model Selection {
 enum AiStatus {
   PENDING
   QUEUED
+  DONE
+  FAILED
+}
+
+enum EmbeddingStatus {
+  PENDING
   DONE
   FAILED
 }

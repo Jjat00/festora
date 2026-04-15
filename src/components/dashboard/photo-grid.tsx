@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { deletePhoto, deletePhotos } from "@/lib/actions/photo-actions";
 import { toggleSelection } from "@/lib/actions/selection-actions";
+import { searchProjectPhotos, type SearchResult } from "@/lib/actions/search-actions";
+import { SearchBar } from "@/components/search-bar";
 import { Lightbox } from "@/components/lightbox";
 import type { Prisma } from "@prisma/client";
 
@@ -276,6 +278,13 @@ export function PhotoGrid({
 
   const hasAiData = photos.some((p) => p.aiStatus === "DONE");
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchFn = useCallback(
+    (query: string) => searchProjectPhotos(projectId, query),
+    [projectId],
+  );
+  const isSearchActive = searchResults !== null;
 
   // Categorías únicas disponibles
   const categories = useMemo(() => {
@@ -291,7 +300,15 @@ export function PhotoGrid({
   }, [photos]);
 
   const sorted = useMemo(() => {
-    let filtered = categoryFilter
+    // Cuando hay búsqueda activa, mapear resultados a PhotoWithSelection
+    if (searchResults !== null) {
+      const photoMap = new Map(photos.map((p) => [p.id, p]));
+      return searchResults
+        .map((r) => photoMap.get(r.id))
+        .filter((p): p is PhotoWithSelection => p !== undefined);
+    }
+
+    const filtered = categoryFilter
       ? photos.filter((p) => p.llmCategory === categoryFilter)
       : photos;
 
@@ -309,7 +326,7 @@ export function PhotoGrid({
       });
     }
     return filtered;
-  }, [photos, sort, categoryFilter]);
+  }, [photos, sort, categoryFilter, searchResults]);
 
   // Multi-select state
   const [isSelecting, setIsSelecting] = useState(false);
@@ -433,8 +450,22 @@ export function PhotoGrid({
             </div>
           </>
         ) : (
-          <div className="flex w-full items-center justify-between">
-            {hasAiData && (
+          <div className="flex w-full flex-col gap-3">
+            <div className="flex items-center gap-3">
+              <SearchBar
+                onResults={setSearchResults}
+                onSearching={setIsSearching}
+                searchFn={searchFn}
+                placeholder="Buscar fotos..."
+              />
+              <button
+                onClick={() => setIsSelecting(true)}
+                className="ml-auto shrink-0 text-sm text-muted-foreground hover:text-foreground"
+              >
+                Seleccionar
+              </button>
+            </div>
+            {hasAiData && !isSearchActive && (
               <div className="flex flex-wrap items-center gap-2">
                 {(
                   [
@@ -457,18 +488,19 @@ export function PhotoGrid({
                 ))}
               </div>
             )}
-            <button
-              onClick={() => setIsSelecting(true)}
-              className="ml-auto text-sm text-muted-foreground hover:text-foreground"
-            >
-              Seleccionar
-            </button>
+            {isSearchActive && (
+              <p className="text-xs text-muted-foreground">
+                {isSearching
+                  ? "Buscando..."
+                  : `${searchResults!.length} resultado${searchResults!.length !== 1 ? "s" : ""}`}
+              </p>
+            )}
           </div>
         )}
       </div>
 
       {/* Category filter chips */}
-      {categories.length > 1 && !isSelecting && (
+      {categories.length > 1 && !isSelecting && !isSearchActive && (
         <div className="mb-4 flex flex-wrap gap-1.5">
           <button
             onClick={() => setCategoryFilter(null)}
