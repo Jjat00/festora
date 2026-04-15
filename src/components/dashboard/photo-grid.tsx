@@ -453,6 +453,7 @@ export function PhotoGrid({
           <div className="flex w-full flex-col gap-3">
             <div className="flex items-center gap-3">
               <SearchBar
+                projectId={projectId}
                 onResults={setSearchResults}
                 onSearching={setIsSearching}
                 searchFn={searchFn}

@@ -137,8 +137,11 @@ model Photo {
   llmTags              String[]  // Tags: novia, novio, grupo, primer-baile, etc.
 
   // Embedding multimodal (Gemini Embedding 2 + pgvector)
+  // Pipeline independiente del análisis AI: descripción limpia con LLM ligero
+  // + imagen → embedding agregado para búsqueda semántica.
   embedding            Unsupported("vector(768)")?
   embeddingStatus      EmbeddingStatus @default(PENDING)
+  embeddingDescription String?
 
   @@index([projectId])
   @@index([projectId, order])

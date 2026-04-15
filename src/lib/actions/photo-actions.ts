@@ -8,6 +8,7 @@ import type { ConfirmUploadInput } from "@/lib/types";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { dispatchPhotoAnalysis, generateAlbumSuggestions } from "@/lib/actions/ai-actions";
+import { dispatchEmbeddingGeneration } from "@/lib/actions/embedding-actions";
 
 async function getAuthenticatedUserId(): Promise<string> {
   const session = await auth();
@@ -68,6 +69,17 @@ export async function confirmUpload(
       size: upload.size,
     })),
   });
+
+  // Disparar generación de embeddings en background (independiente del análisis AI)
+  after(() =>
+    dispatchEmbeddingGeneration(
+      photos.map((p) => ({
+        id: p.id,
+        objectKey: p.objectKey,
+        thumbnailKey: p.thumbnailKey,
+      })),
+    ),
+  );
 
   revalidatePath(`/projects/${projectId}/photos`);
 

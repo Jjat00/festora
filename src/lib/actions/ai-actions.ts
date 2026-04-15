@@ -7,11 +7,6 @@ import { z } from "zod";
 import { getAnalysisModel, getActiveModelId } from "@/lib/ai/provider";
 import { analyzePhotoBatch, type PhotoInput } from "@/lib/ai/analyze";
 import type { PhotoAnalysis } from "@/lib/ai/schemas";
-import {
-  generateBatchPhotoEmbeddings,
-  buildEmbeddingText,
-  type PhotoEmbeddingInput,
-} from "@/lib/ai/embeddings";
 
 const VALID_CATEGORIES = new Set([
   "preparativos", "ceremonia", "retratos", "pareja", "grupo", "familia",
@@ -214,92 +209,7 @@ export async function dispatchPhotoAnalysis(
         });
       })
     );
-
-    // Generar embeddings multimodales (no bloquea el análisis si falla)
-    try {
-      await generateEmbeddingsForBatch(batchPhotos, resultMap, batchInputs);
-    } catch (err) {
-      console.error(`[embedding] Batch ${i / BATCH_SIZE + 1} embedding failed:`, err);
-      await prisma.photo.updateMany({
-        where: { id: { in: batchPhotos.map((p) => p.id) } },
-        data: { embeddingStatus: "FAILED" },
-      });
-    }
   }
-}
-
-/**
- * Genera embeddings multimodales para un batch de fotos ya analizadas.
- * Descarga thumbnails, combina texto + imagen, y guarda en pgvector.
- */
-async function generateEmbeddingsForBatch(
-  batchPhotos: Array<{ id: string }>,
-  resultMap: Map<string, PhotoAnalysis>,
-  photoInputs: PhotoInput[],
-): Promise<void> {
-  const inputMap = new Map(photoInputs.map((p) => [p.id, p]));
-  const embeddingInputs: PhotoEmbeddingInput[] = [];
-
-  // Descargar thumbnails y armar inputs para embeddings
-  const fetchResults = await Promise.allSettled(
-    batchPhotos.map(async (photo) => {
-      const result = resultMap.get(photo.id);
-      const input = inputMap.get(photo.id);
-      if (!result || !input) return null;
-
-      const textContent = buildEmbeddingText({
-        summary: result.summary,
-        category: normalizeCategory(result.category),
-        tags: result.tags,
-      });
-
-      const response = await fetch(input.thumbnailUrl);
-      if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
-      const buffer = Buffer.from(await response.arrayBuffer());
-      const imageBase64 = buffer.toString("base64");
-
-      return {
-        id: photo.id,
-        textContent,
-        imageBase64,
-        mimeType: "image/webp" as const,
-      };
-    }),
-  );
-
-  for (const result of fetchResults) {
-    if (result.status === "fulfilled" && result.value) {
-      embeddingInputs.push(result.value);
-    }
-  }
-
-  if (embeddingInputs.length === 0) return;
-
-  const embeddings = await generateBatchPhotoEmbeddings(embeddingInputs);
-
-  // Guardar embeddings con raw SQL (Prisma no tiene tipo vector nativo)
-  await Promise.all(
-    batchPhotos.map(async (photo) => {
-      const embedding = embeddings.get(photo.id);
-      if (embedding) {
-        const vectorStr = `[${embedding.join(",")}]`;
-        await prisma.$executeRawUnsafe(
-          `UPDATE "Photo" SET embedding = $1::vector, "embeddingStatus" = 'DONE'::"EmbeddingStatus" WHERE id = $2`,
-          vectorStr,
-          photo.id,
-        );
-      } else if (resultMap.has(photo.id)) {
-        // Análisis exitoso pero embedding falló
-        await prisma.photo.update({
-          where: { id: photo.id },
-          data: { embeddingStatus: "FAILED" },
-        });
-      }
-    }),
-  );
-
-  const successCount = embeddings.size;
-  console.log(`[embedding] ${successCount}/${embeddingInputs.length} embeddings generated`);
 }
 
 async function markBatchFailed(photoIds: string[]): Promise<void> {
@@ -307,109 +217,6 @@ async function markBatchFailed(photoIds: string[]): Promise<void> {
     where: { id: { in: photoIds } },
     data: { aiStatus: "FAILED", aiProcessedAt: new Date() },
   });
-}
-
-// ------------------------------------------------------------------ //
-// Backfill: generar embeddings para fotos ya analizadas sin embedding
-// ------------------------------------------------------------------ //
-
-/**
- * Genera embeddings para fotos existentes que ya tienen análisis AI
- * pero aún no tienen embedding (embeddingStatus = PENDING o FAILED).
- */
-export async function backfillEmbeddings(
-  projectId: string,
-): Promise<{ processed: number; succeeded: number }> {
-  const photos = await prisma.photo.findMany({
-    where: {
-      projectId,
-      aiStatus: "DONE",
-      embeddingStatus: { in: ["PENDING", "FAILED"] },
-      llmSummary: { not: null },
-    },
-    select: {
-      id: true,
-      objectKey: true,
-      thumbnailKey: true,
-      llmSummary: true,
-      llmCategory: true,
-      llmTags: true,
-    },
-  });
-
-  if (photos.length === 0) return { processed: 0, succeeded: 0 };
-
-  let totalSucceeded = 0;
-  const BATCH_SIZE = 5;
-
-  for (let i = 0; i < photos.length; i += BATCH_SIZE) {
-    const batch = photos.slice(i, i + BATCH_SIZE);
-
-    try {
-      const embeddingInputs: PhotoEmbeddingInput[] = [];
-
-      const fetchResults = await Promise.allSettled(
-        batch.map(async (photo) => {
-          const textContent = buildEmbeddingText({
-            summary: photo.llmSummary,
-            category: photo.llmCategory,
-            tags: photo.llmTags,
-          });
-
-          const url = await getSignedReadUrl(photo.thumbnailKey ?? photo.objectKey);
-          const response = await fetch(url);
-          if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
-          const buffer = Buffer.from(await response.arrayBuffer());
-
-          return {
-            id: photo.id,
-            textContent,
-            imageBase64: buffer.toString("base64"),
-            mimeType: "image/webp" as const,
-          };
-        }),
-      );
-
-      for (const result of fetchResults) {
-        if (result.status === "fulfilled") {
-          embeddingInputs.push(result.value);
-        }
-      }
-
-      if (embeddingInputs.length === 0) continue;
-
-      const embeddings = await generateBatchPhotoEmbeddings(embeddingInputs);
-
-      await Promise.all(
-        batch.map(async (photo) => {
-          const embedding = embeddings.get(photo.id);
-          if (embedding) {
-            const vectorStr = `[${embedding.join(",")}]`;
-            await prisma.$executeRawUnsafe(
-              `UPDATE "Photo" SET embedding = $1::vector, "embeddingStatus" = 'DONE'::"EmbeddingStatus" WHERE id = $2`,
-              vectorStr,
-              photo.id,
-            );
-            totalSucceeded++;
-          } else {
-            await prisma.photo.update({
-              where: { id: photo.id },
-              data: { embeddingStatus: "FAILED" },
-            });
-          }
-        }),
-      );
-    } catch (err) {
-      console.error(`[backfill] Batch ${i / BATCH_SIZE + 1} failed:`, err);
-      await prisma.photo.updateMany({
-        where: { id: { in: batch.map((p) => p.id) } },
-        data: { embeddingStatus: "FAILED" },
-      });
-    }
-  }
-
-  console.log(`[backfill] ${totalSucceeded}/${photos.length} embeddings generated for project ${projectId}`);
-  return { processed: photos.length, succeeded: totalSucceeded };
 }
 
 // ------------------------------------------------------------------ //

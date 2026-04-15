@@ -1,15 +1,20 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { getEmbeddingProgress } from "@/lib/actions/embedding-actions";
 
 interface SearchBarProps<T> {
+  projectId: string;
   onResults: (results: T[] | null) => void;
   onSearching: (isSearching: boolean) => void;
   searchFn: (query: string) => Promise<T[]>;
   placeholder?: string;
 }
 
+const POLL_INTERVAL_MS = 5000;
+
 export function SearchBar<T>({
+  projectId,
   onResults,
   onSearching,
   searchFn,
@@ -17,7 +22,38 @@ export function SearchBar<T>({
 }: SearchBarProps<T>) {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number; failed: number } | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const ready = progress !== null && progress.total > 0 && progress.done + progress.failed >= progress.total;
+  const hasPhotos = progress !== null && progress.total > 0;
+
+  // Polling de progreso de embeddings
+  useEffect(() => {
+    let cancelled = false;
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
+
+    async function poll() {
+      try {
+        const p = await getEmbeddingProgress(projectId);
+        if (cancelled) return;
+        setProgress(p);
+        // Continuar polling si aún no terminó
+        if (p.done + p.failed < p.total) {
+          pollTimer = setTimeout(poll, POLL_INTERVAL_MS);
+        }
+      } catch (err) {
+        console.error("[search] Progress poll failed:", err);
+      }
+    }
+
+    poll();
+
+    return () => {
+      cancelled = true;
+      if (pollTimer) clearTimeout(pollTimer);
+    };
+  }, [projectId]);
 
   const doSearch = useCallback(
     async (text: string) => {
@@ -65,11 +101,19 @@ export function SearchBar<T>({
     if (timerRef.current) clearTimeout(timerRef.current);
   }
 
+  // No mostrar la barra si no hay fotos
+  if (!hasPhotos) return null;
+
+  const disabled = !ready;
+  const dynamicPlaceholder = ready
+    ? placeholder
+    : `Preparando búsqueda… ${progress!.done}/${progress!.total}`;
+
   return (
     <div className="relative w-full max-w-sm">
       {/* Icono de búsqueda / spinner */}
       <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-        {loading ? (
+        {loading || !ready ? (
           <svg
             className="h-4 w-4 animate-spin"
             viewBox="0 0 24 24"
@@ -107,12 +151,14 @@ export function SearchBar<T>({
         type="text"
         value={query}
         onChange={(e) => handleChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full rounded-full border border-border bg-background py-2 pl-9 pr-8 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-foreground/30 focus:ring-1 focus:ring-foreground/10"
+        placeholder={dynamicPlaceholder}
+        disabled={disabled}
+        title={disabled ? `Procesando ${progress!.done}/${progress!.total} fotos para búsqueda` : undefined}
+        className="w-full rounded-full border border-border bg-background py-2 pl-9 pr-8 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-foreground/30 focus:ring-1 focus:ring-foreground/10 disabled:cursor-not-allowed disabled:opacity-60"
       />
 
       {/* Botón X para limpiar */}
-      {query && (
+      {query && !disabled && (
         <button
           onClick={handleClear}
           className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground transition-colors hover:text-foreground"

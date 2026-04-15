@@ -263,6 +263,7 @@ export function GalleryView({
         {/* Barra de búsqueda */}
         <div className="flex items-center justify-between gap-3 px-3 pt-3 pb-1">
           <SearchBar
+            projectId={projectId}
             onResults={setSearchResults}
             onSearching={setIsSearching}
             searchFn={searchFn}
