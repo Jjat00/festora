@@ -1,6 +1,7 @@
 "use server";
 
 import { auth } from "@/auth";
+import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSignedReadUrl } from "@/lib/r2";
 import { generatePhotoDescription } from "@/lib/ai/photo-description";
@@ -21,12 +22,6 @@ interface PhotoToEmbed {
  */
 async function processPhoto(photo: PhotoToEmbed): Promise<boolean> {
   try {
-    // Marcar como QUEUED
-    await prisma.photo.update({
-      where: { id: photo.id },
-      data: { embeddingStatus: "PENDING" },
-    });
-
     // Descargar thumbnail
     const url = await getSignedReadUrl(photo.thumbnailKey ?? photo.objectKey);
     const response = await fetch(url);
@@ -72,6 +67,12 @@ export async function dispatchEmbeddingGeneration(
   photos: PhotoToEmbed[],
 ): Promise<void> {
   if (photos.length === 0) return;
+
+  // Marcar todas como QUEUED de inmediato — evita que polling re-dispare
+  await prisma.photo.updateMany({
+    where: { id: { in: photos.map((p) => p.id) } },
+    data: { embeddingStatus: "QUEUED" },
+  });
 
   console.log(`[embedding] Starting generation for ${photos.length} photos`);
   let succeeded = 0;
@@ -128,7 +129,8 @@ export async function backfillProjectEmbeddings(
 
 /**
  * Retorna el progreso de generación de embeddings de un proyecto.
- * Usado por el cliente para mostrar estado de búsqueda.
+ * Auto-dispara en background las fotos PENDING (proyectos viejos o uploads
+ * cuyo dispatch original murió). El cliente solo polea, no necesita botón.
  */
 export async function getEmbeddingProgress(
   projectId: string,
@@ -146,6 +148,17 @@ export async function getEmbeddingProgress(
     total += g._count;
     if (g.embeddingStatus === "DONE") done = g._count;
     if (g.embeddingStatus === "FAILED") failed = g._count;
+  }
+
+  // Auto-dispatch: si hay fotos PENDING (nunca arrancadas), las disparamos
+  // en background. QUEUED ya están en proceso, así que no las tocamos.
+  const pending = await prisma.photo.findMany({
+    where: { projectId, embeddingStatus: "PENDING" },
+    select: { id: true, objectKey: true, thumbnailKey: true },
+  });
+
+  if (pending.length > 0) {
+    after(() => dispatchEmbeddingGeneration(pending));
   }
 
   return { done, total, failed };

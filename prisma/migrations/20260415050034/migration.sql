@@ -1,2 +1,2 @@
 -- DropIndex
-DROP INDEX "Photo_embedding_idx";
+DROP INDEX IF EXISTS "Photo_embedding_idx";
