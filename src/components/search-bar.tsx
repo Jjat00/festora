@@ -11,7 +11,8 @@ interface SearchBarProps<T> {
   examples?: string[];
 }
 
-const POLL_INTERVAL_MS = 5000;
+const POLL_INITIAL_MS = 8000;
+const POLL_MAX_MS = 60000;
 const EXAMPLE_ROTATION_MS = 3500;
 
 const DEFAULT_EXAMPLES = [
@@ -41,30 +42,66 @@ export function SearchBar<T>({
   const ready = progress !== null && progress.total > 0 && progress.done + progress.failed >= progress.total;
   const hasPhotos = progress !== null && progress.total > 0;
 
-  // Polling de progreso de embeddings
+  // Polling de progreso de embeddings — con backoff exponencial y pausa
+  // cuando la pestaña está oculta para no saturar el pool de conexiones.
   useEffect(() => {
     let cancelled = false;
     let pollTimer: ReturnType<typeof setTimeout> | null = null;
+    let currentInterval = POLL_INITIAL_MS;
+    let lastDone = 0;
 
     async function poll() {
+      if (cancelled) return;
+      // Pausar si la pestaña no es visible
+      if (typeof document !== "undefined" && document.hidden) {
+        pollTimer = setTimeout(poll, currentInterval);
+        return;
+      }
+
       try {
         const p = await getEmbeddingProgress(projectId);
         if (cancelled) return;
         setProgress(p);
-        // Continuar polling si aún no terminó
-        if (p.done + p.failed < p.total) {
-          pollTimer = setTimeout(poll, POLL_INTERVAL_MS);
+
+        const finished = p.done + p.failed >= p.total;
+        if (finished) return; // Detener polling
+
+        // Backoff: si no hubo progreso, duplicar intervalo (hasta máximo)
+        if (p.done === lastDone) {
+          currentInterval = Math.min(currentInterval * 2, POLL_MAX_MS);
+        } else {
+          currentInterval = POLL_INITIAL_MS; // Reset si hubo progreso
+          lastDone = p.done;
         }
+
+        pollTimer = setTimeout(poll, currentInterval);
       } catch (err) {
         console.error("[search] Progress poll failed:", err);
+        // En error, esperar más tiempo
+        pollTimer = setTimeout(poll, POLL_MAX_MS);
       }
     }
 
     poll();
 
+    // Re-arrancar polling cuando la pestaña vuelve a ser visible
+    function onVisible() {
+      if (!cancelled && document.visibilityState === "visible") {
+        currentInterval = POLL_INITIAL_MS;
+        if (pollTimer) clearTimeout(pollTimer);
+        poll();
+      }
+    }
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", onVisible);
+    }
+
     return () => {
       cancelled = true;
       if (pollTimer) clearTimeout(pollTimer);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVisible);
+      }
     };
   }, [projectId]);
 

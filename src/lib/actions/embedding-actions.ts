@@ -142,8 +142,8 @@ export async function backfillProjectEmbeddings(
 export async function getEmbeddingProgress(
   projectId: string,
 ): Promise<{ done: number; total: number; failed: number }> {
-  // Rescatar QUEUED stuck: si llevan más de STALE_QUEUED_MINUTES sin actualizarse,
-  // el dispatcher anterior murió. Los reseteamos a PENDING para reintento.
+  // Rescatar QUEUED stuck en una sola query atómica — devuelve los IDs
+  // afectados para no necesitar otra consulta luego.
   const staleThreshold = new Date(Date.now() - STALE_QUEUED_MINUTES * 60 * 1000);
   await prisma.photo.updateMany({
     where: {
@@ -157,11 +157,19 @@ export async function getEmbeddingProgress(
     data: { embeddingStatus: "PENDING" },
   });
 
-  const groups = await prisma.photo.groupBy({
-    by: ["embeddingStatus"],
-    where: { projectId },
-    _count: true,
-  });
+  // Conteo de estados + fotos PENDING en paralelo
+  const [groups, pending] = await Promise.all([
+    prisma.photo.groupBy({
+      by: ["embeddingStatus"],
+      where: { projectId },
+      _count: true,
+    }),
+    prisma.photo.findMany({
+      where: { projectId, embeddingStatus: "PENDING" },
+      select: { id: true, objectKey: true, thumbnailKey: true },
+      take: BATCH_SIZE * 2, // máx 10 por ciclo de polling
+    }),
+  ]);
 
   let done = 0;
   let failed = 0;
@@ -171,15 +179,6 @@ export async function getEmbeddingProgress(
     if (g.embeddingStatus === "DONE") done = g._count;
     if (g.embeddingStatus === "FAILED") failed = g._count;
   }
-
-  // Auto-dispatch: si hay fotos PENDING (nunca arrancadas o rescatadas),
-  // las disparamos en background. Limitado a CHUNK_SIZE para que cada dispatch
-  // termine rápido y sea robusto a crashes.
-  const pending = await prisma.photo.findMany({
-    where: { projectId, embeddingStatus: "PENDING" },
-    select: { id: true, objectKey: true, thumbnailKey: true },
-    take: BATCH_SIZE * 2, // procesa hasta 10 por ciclo de polling (~5s)
-  });
 
   if (pending.length > 0) {
     after(() => dispatchEmbeddingGeneration(pending));
