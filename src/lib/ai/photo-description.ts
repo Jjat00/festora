@@ -39,8 +39,9 @@ export async function generatePhotoDescription(
     ],
     config: {
       systemInstruction: SYSTEM_PROMPT,
-      maxOutputTokens: 80,
+      maxOutputTokens: 120,
       temperature: 0.2,
+      thinkingConfig: { thinkingBudget: 0 },
     },
   });
 
