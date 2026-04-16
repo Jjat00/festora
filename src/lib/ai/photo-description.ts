@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY });
 
@@ -41,7 +41,7 @@ export async function generatePhotoDescription(
       systemInstruction: SYSTEM_PROMPT,
       maxOutputTokens: 256,
       temperature: 0.2,
-      thinkingConfig: { thinkingLevel: "low" },
+      thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
     },
   });
 
