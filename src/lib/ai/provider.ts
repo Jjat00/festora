@@ -11,11 +11,12 @@ export const AI_MODELS = {
   "gpt-4o": () => openai("gpt-4o"),
   "gemini-2.0-flash": () => google("gemini-2.0-flash"),
   "gemini-2.0-flash-lite": () => google("gemini-2.0-flash-lite"),
+  "gemini-3.1-flash-lite-preview": () => google("gemini-3.1-flash-lite-preview"),
 } as const;
 
 export type AIModelId = keyof typeof AI_MODELS;
 
-const DEFAULT_MODEL: AIModelId = "gpt-4o-mini";
+const DEFAULT_MODEL: AIModelId = "gemini-3.1-flash-lite-preview";
 
 /**
  * Retorna el modelo configurado via env o el default.
