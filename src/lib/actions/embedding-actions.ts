@@ -6,7 +6,7 @@ import { generatePhotoDescription } from "@/lib/ai/photo-description";
 import { generatePhotoEmbedding } from "@/lib/ai/embeddings";
 
 const STALE_QUEUED_MINUTES = 3;
-const CRON_BATCH_SIZE = 5;
+const CRON_BATCH_SIZE = 15;
 
 interface PhotoToEmbed {
   id: string;
