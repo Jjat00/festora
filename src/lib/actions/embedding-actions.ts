@@ -70,11 +70,39 @@ async function processPhoto(photo: PhotoToEmbed): Promise<boolean> {
 
 /**
  * Retorna el progreso de generación de embeddings de un proyecto.
- * Solo consulta — NO procesa fotos. El procesamiento lo hace el cron job.
+ * Procesa 1 foto PENDING sincrónicamente en cada llamada — garantizado
+ * en Vercel Hobby (sin cron por minuto ni after()). El polling del
+ * cliente sigue llamando hasta terminar todas.
  */
 export async function getEmbeddingProgress(
   projectId: string,
 ): Promise<{ done: number; total: number; failed: number }> {
+  // Rescatar QUEUED stuck (dispatcher anterior murió)
+  const staleThreshold = new Date(Date.now() - STALE_QUEUED_MINUTES * 60 * 1000);
+  await prisma.photo.updateMany({
+    where: {
+      projectId,
+      embeddingStatus: "QUEUED",
+      OR: [
+        { embeddingUpdatedAt: null },
+        { embeddingUpdatedAt: { lt: staleThreshold } },
+      ],
+    },
+    data: { embeddingStatus: "PENDING" },
+  });
+
+  // Buscar 1 foto PENDING para procesar en este ciclo
+  const nextPhoto = await prisma.photo.findFirst({
+    where: { projectId, embeddingStatus: "PENDING" },
+    select: { id: true, objectKey: true, thumbnailKey: true },
+  });
+
+  // Procesar 1 foto sincrónicamente
+  if (nextPhoto) {
+    await processPhoto(nextPhoto);
+  }
+
+  // Contar estados después de procesar
   const groups = await prisma.photo.groupBy({
     by: ["embeddingStatus"],
     where: { projectId },
