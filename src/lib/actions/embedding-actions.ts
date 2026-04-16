@@ -22,6 +22,7 @@ interface PhotoToEmbed {
  * Maneja errores por foto sin afectar al resto del batch.
  */
 async function processPhoto(photo: PhotoToEmbed): Promise<boolean> {
+  console.log(`[embedding] Processing photo ${photo.id}`);
   try {
     // Descargar thumbnail
     const url = await getSignedReadUrl(photo.thumbnailKey ?? photo.objectKey);
@@ -167,7 +168,7 @@ export async function getEmbeddingProgress(
     prisma.photo.findMany({
       where: { projectId, embeddingStatus: "PENDING" },
       select: { id: true, objectKey: true, thumbnailKey: true },
-      take: BATCH_SIZE * 2, // máx 10 por ciclo de polling
+      take: 2, // Pocas fotos por ciclo para terminar dentro del timeout serverless
     }),
   ]);
 
