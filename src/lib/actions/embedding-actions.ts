@@ -1,15 +1,12 @@
 "use server";
 
-import { auth } from "@/auth";
-import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSignedReadUrl } from "@/lib/r2";
 import { generatePhotoDescription } from "@/lib/ai/photo-description";
 import { generatePhotoEmbedding } from "@/lib/ai/embeddings";
 
-const BATCH_SIZE = 5;
-const MAX_CONCURRENT = 3;
-const STALE_QUEUED_MINUTES = 2;
+const STALE_QUEUED_MINUTES = 3;
+const CRON_BATCH_SIZE = 5;
 
 interface PhotoToEmbed {
   id: string;
@@ -19,11 +16,16 @@ interface PhotoToEmbed {
 
 /**
  * Procesa una sola foto: descripción → embedding → DB.
- * Maneja errores por foto sin afectar al resto del batch.
  */
 async function processPhoto(photo: PhotoToEmbed): Promise<boolean> {
   console.log(`[embedding] Processing photo ${photo.id}`);
   try {
+    // Marcar como QUEUED
+    await prisma.photo.update({
+      where: { id: photo.id },
+      data: { embeddingStatus: "QUEUED", embeddingUpdatedAt: new Date() },
+    });
+
     // Descargar thumbnail
     const url = await getSignedReadUrl(photo.thumbnailKey ?? photo.objectKey);
     const response = await fetch(url);
@@ -50,6 +52,7 @@ async function processPhoto(photo: PhotoToEmbed): Promise<boolean> {
       photo.id,
     );
 
+    console.log(`[embedding] Photo ${photo.id} done`);
     return true;
   } catch (err) {
     console.error(`[embedding] Photo ${photo.id} failed:`, err);
@@ -66,111 +69,17 @@ async function processPhoto(photo: PhotoToEmbed): Promise<boolean> {
 }
 
 /**
- * Genera embeddings en background para un set de fotos.
- * Procesa en batches con concurrencia limitada para no saturar la API.
- * Independiente del análisis AI: usa su propio LLM ligero para descripción.
- */
-export async function dispatchEmbeddingGeneration(
-  photos: PhotoToEmbed[],
-): Promise<void> {
-  if (photos.length === 0) return;
-
-  // Marcar todas como QUEUED de inmediato — evita que polling re-dispare
-  await prisma.photo.updateMany({
-    where: { id: { in: photos.map((p) => p.id) } },
-    data: { embeddingStatus: "QUEUED", embeddingUpdatedAt: new Date() },
-  });
-
-  console.log(`[embedding] Starting generation for ${photos.length} photos`);
-  let succeeded = 0;
-  let failed = 0;
-
-  for (let i = 0; i < photos.length; i += BATCH_SIZE) {
-    const batch = photos.slice(i, i + BATCH_SIZE);
-
-    // Procesar batch con concurrencia limitada
-    for (let j = 0; j < batch.length; j += MAX_CONCURRENT) {
-      const chunk = batch.slice(j, j + MAX_CONCURRENT);
-      const results = await Promise.all(chunk.map(processPhoto));
-      for (const ok of results) {
-        if (ok) succeeded++;
-        else failed++;
-      }
-    }
-  }
-
-  console.log(`[embedding] Done: ${succeeded} succeeded, ${failed} failed`);
-}
-
-/**
- * Backfill: encuentra fotos sin embedding y las procesa.
- * Útil para fotos subidas antes de habilitar la feature.
- */
-export async function backfillProjectEmbeddings(
-  projectId: string,
-): Promise<{ queued: number }> {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error("Not authenticated");
-
-  const project = await prisma.project.findUnique({
-    where: { id: projectId, userId: session.user.id },
-    select: { id: true },
-  });
-  if (!project) throw new Error("Project not found");
-
-  const photos = await prisma.photo.findMany({
-    where: {
-      projectId,
-      embeddingStatus: { in: ["PENDING", "FAILED"] },
-    },
-    select: { id: true, objectKey: true, thumbnailKey: true },
-  });
-
-  if (photos.length === 0) return { queued: 0 };
-
-  // Fire-and-forget: el cliente no espera el resultado
-  void dispatchEmbeddingGeneration(photos);
-
-  return { queued: photos.length };
-}
-
-/**
  * Retorna el progreso de generación de embeddings de un proyecto.
- * Auto-dispara en background las fotos PENDING (proyectos viejos o uploads
- * cuyo dispatch original murió) y rescata QUEUED stuck (más de N min sin
- * actualizarse → el dispatcher murió, los reintentamos).
+ * Solo consulta — NO procesa fotos. El procesamiento lo hace el cron job.
  */
 export async function getEmbeddingProgress(
   projectId: string,
 ): Promise<{ done: number; total: number; failed: number }> {
-  // Rescatar QUEUED stuck en una sola query atómica — devuelve los IDs
-  // afectados para no necesitar otra consulta luego.
-  const staleThreshold = new Date(Date.now() - STALE_QUEUED_MINUTES * 60 * 1000);
-  await prisma.photo.updateMany({
-    where: {
-      projectId,
-      embeddingStatus: "QUEUED",
-      OR: [
-        { embeddingUpdatedAt: null },
-        { embeddingUpdatedAt: { lt: staleThreshold } },
-      ],
-    },
-    data: { embeddingStatus: "PENDING" },
+  const groups = await prisma.photo.groupBy({
+    by: ["embeddingStatus"],
+    where: { projectId },
+    _count: true,
   });
-
-  // Conteo de estados + fotos PENDING en paralelo
-  const [groups, pending] = await Promise.all([
-    prisma.photo.groupBy({
-      by: ["embeddingStatus"],
-      where: { projectId },
-      _count: true,
-    }),
-    prisma.photo.findMany({
-      where: { projectId, embeddingStatus: "PENDING" },
-      select: { id: true, objectKey: true, thumbnailKey: true },
-      take: 2, // Pocas fotos por ciclo para terminar dentro del timeout serverless
-    }),
-  ]);
 
   let done = 0;
   let failed = 0;
@@ -181,9 +90,81 @@ export async function getEmbeddingProgress(
     if (g.embeddingStatus === "FAILED") failed = g._count;
   }
 
-  if (pending.length > 0) {
-    after(() => dispatchEmbeddingGeneration(pending));
+  return { done, total, failed };
+}
+
+/**
+ * Dispara generación de embeddings para fotos recién subidas.
+ * Llamado desde confirmUpload via after(). Si after() falla en serverless,
+ * el cron job las recoge como PENDING.
+ */
+export async function dispatchEmbeddingGeneration(
+  photos: PhotoToEmbed[],
+): Promise<void> {
+  if (photos.length === 0) return;
+
+  console.log(`[embedding] Dispatching ${photos.length} photos`);
+  let succeeded = 0;
+  let failed = 0;
+
+  for (const photo of photos) {
+    const ok = await processPhoto(photo);
+    if (ok) succeeded++;
+    else failed++;
   }
 
-  return { done, total, failed };
+  console.log(`[embedding] Done: ${succeeded} succeeded, ${failed} failed`);
+}
+
+/**
+ * Procesa un batch de fotos PENDING de todos los proyectos.
+ * Llamado por el cron job cada minuto. Rescata QUEUED stuck y procesa
+ * hasta CRON_BATCH_SIZE fotos por ejecución.
+ */
+export async function processEmbeddingBatch(): Promise<{
+  processed: number;
+  succeeded: number;
+  failed: number;
+}> {
+  // Rescatar QUEUED stuck (dispatcher anterior murió)
+  const staleThreshold = new Date(Date.now() - STALE_QUEUED_MINUTES * 60 * 1000);
+  const rescued = await prisma.photo.updateMany({
+    where: {
+      embeddingStatus: "QUEUED",
+      OR: [
+        { embeddingUpdatedAt: null },
+        { embeddingUpdatedAt: { lt: staleThreshold } },
+      ],
+    },
+    data: { embeddingStatus: "PENDING" },
+  });
+
+  if (rescued.count > 0) {
+    console.log(`[embedding-cron] Rescued ${rescued.count} stale QUEUED photos`);
+  }
+
+  // Buscar fotos PENDING de cualquier proyecto
+  const photos = await prisma.photo.findMany({
+    where: { embeddingStatus: "PENDING" },
+    select: { id: true, objectKey: true, thumbnailKey: true },
+    take: CRON_BATCH_SIZE,
+    orderBy: { createdAt: "asc" }, // Más antiguas primero
+  });
+
+  if (photos.length === 0) {
+    return { processed: 0, succeeded: 0, failed: 0 };
+  }
+
+  console.log(`[embedding-cron] Processing ${photos.length} photos`);
+  let succeeded = 0;
+  let failed = 0;
+
+  for (const photo of photos) {
+    const ok = await processPhoto(photo);
+    if (ok) succeeded++;
+    else failed++;
+  }
+
+  console.log(`[embedding-cron] Done: ${succeeded} succeeded, ${failed} failed`);
+  return { processed: photos.length, succeeded, failed };
 }
