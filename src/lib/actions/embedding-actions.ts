@@ -171,6 +171,12 @@ export async function processEmbeddingBatch(): Promise<{
     console.log(`[embedding-cron] Rescued ${rescued.count} stale QUEUED photos`);
   }
 
+  // Reintentar FAILED (errores transitorios como 503 de Gemini)
+  await prisma.photo.updateMany({
+    where: { embeddingStatus: "FAILED" },
+    data: { embeddingStatus: "PENDING" },
+  });
+
   // Buscar fotos PENDING de cualquier proyecto
   const photos = await prisma.photo.findMany({
     where: { embeddingStatus: "PENDING" },
