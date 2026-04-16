@@ -39,14 +39,20 @@ export async function generatePhotoDescription(
     ],
     config: {
       systemInstruction: SYSTEM_PROMPT,
-      maxOutputTokens: 120,
+      maxOutputTokens: 256,
       temperature: 0.2,
-      thinkingConfig: { thinkingBudget: 0 },
+      thinkingConfig: { thinkingLevel: "low" },
     },
   });
 
   const text = response.text?.trim();
-  if (!text) throw new Error("Empty description from Gemini");
+  if (!text) {
+    const finishReason = response.candidates?.[0]?.finishReason;
+    const blockReason = response.promptFeedback?.blockReason;
+    throw new Error(
+      `Empty description from Gemini (finishReason=${finishReason ?? "unknown"}, blockReason=${blockReason ?? "none"})`,
+    );
+  }
 
   return text;
 }
