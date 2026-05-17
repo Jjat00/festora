@@ -44,7 +44,8 @@ export default async function Home() {
               priority
             />
             <p className="mt-8 max-w-md text-center text-lg font-light leading-relaxed text-foreground/80 drop-shadow-md">
-              La forma más elegante de compartir tus fotos con tus clientes.
+              Galerías privadas, curadas con IA, para compartir tus momentos
+              solo con quien tú elijas.
             </p>
             <div className="mt-10 flex items-center gap-4">
               {session?.user ? (
@@ -109,8 +110,8 @@ export default async function Home() {
               <span className="text-muted-foreground">Es tu asistente creativo.</span>
             </h2>
             <p className="mt-4 max-w-lg text-base font-light leading-relaxed text-muted-foreground">
-              Festora combina entrega profesional de fotos con inteligencia artificial
-              que entiende tus imágenes, ahorra tu tiempo y sorprende a tus clientes.
+              Festora organiza tus fotos, encuentra cualquier momento al instante
+              y arma álbumes hermosos por ti. Tú solo eliges con quién compartirlos.
             </p>
           </div>
 
@@ -126,10 +127,10 @@ export default async function Home() {
                   <path d="M12 17v5" />
                 </svg>
               </div>
-              <h3 className="text-sm font-semibold">Búsqueda inteligente</h3>
+              <h3 className="text-sm font-semibold">Encuentra cualquier foto al instante</h3>
               <p className="mt-2 text-sm font-light leading-relaxed text-muted-foreground">
-                Tus clientes describen lo que buscan con palabras y la IA encuentra
-                las fotos exactas. &ldquo;La foto junto al lago al atardecer&rdquo; — listo.
+                Describe con palabras lo que buscas y la IA la encuentra.
+                &ldquo;El atardecer del viaje a la playa&rdquo; — listo, sin scrollear cientos de fotos.
               </p>
             </div>
 
@@ -141,10 +142,10 @@ export default async function Home() {
                   <path d="m9 8 6 4-6 4V8Z" />
                 </svg>
               </div>
-              <h3 className="text-sm font-semibold">Highlights automáticos</h3>
+              <h3 className="text-sm font-semibold">Las mejores, seleccionadas por ti</h3>
               <p className="mt-2 text-sm font-light leading-relaxed text-muted-foreground">
-                La IA analiza composición, nitidez y emoción para generar una
-                selección destacada antes de que tu cliente vea la galería.
+                La IA analiza composición, nitidez y emoción para destacar las
+                fotos que importan. Subes 500, compartes las 30 que valen la pena.
               </p>
             </div>
 
@@ -157,10 +158,10 @@ export default async function Home() {
                   <path d="m8 17 4 4 4-4" />
                 </svg>
               </div>
-              <h3 className="text-sm font-semibold">Entrega profesional</h3>
+              <h3 className="text-sm font-semibold">Privado de verdad</h3>
               <p className="mt-2 text-sm font-light leading-relaxed text-muted-foreground">
-                Galerías privadas con PIN, descargas protegidas y una experiencia
-                premium que refleja la calidad de tu trabajo.
+                Solo lo ve quien tú elijas. Link único o PIN, sin algoritmos
+                ni feeds públicos. Tus recuerdos no son contenido para nadie más.
               </p>
             </div>
 
@@ -174,10 +175,10 @@ export default async function Home() {
                   <path d="M16 10h.01" />
                 </svg>
               </div>
-              <h3 className="text-sm font-semibold">Chat con tu galería</h3>
+              <h3 className="text-sm font-semibold">Habla con tus recuerdos</h3>
               <p className="mt-2 text-sm font-light leading-relaxed text-muted-foreground">
-                Los clientes interactúan con un asistente que conoce cada foto.
-                Preguntan, filtran y descubren su sesión de forma conversacional.
+                Un asistente que conoce cada foto del álbum. Pregunta, filtra
+                y redescubre tus momentos en lenguaje natural.
               </p>
             </div>
 
@@ -196,10 +197,10 @@ export default async function Home() {
                   <path d="m16.24 7.76 2.83-2.83" />
                 </svg>
               </div>
-              <h3 className="text-sm font-semibold">Etiquetado automático</h3>
+              <h3 className="text-sm font-semibold">Organización sin mover un dedo</h3>
               <p className="mt-2 text-sm font-light leading-relaxed text-muted-foreground">
-                Cada foto se analiza al subirla: escena, emociones, colores
-                dominantes. Organización sin esfuerzo para cientos de fotos.
+                Cada foto se analiza al subirla: escena, personas, lugar, colores.
+                Tus álbumes se ordenan solos mientras tú haces otra cosa.
               </p>
             </div>
 
@@ -213,10 +214,11 @@ export default async function Home() {
                   <path d="M3 15h18" />
                 </svg>
               </div>
-              <h3 className="text-sm font-semibold">Hecho para fotógrafos</h3>
+              <h3 className="text-sm font-semibold">Hermoso desde la primera foto</h3>
               <p className="mt-2 text-sm font-light leading-relaxed text-muted-foreground">
-                Sin plantillas genéricas. Cada detalle está diseñado para el flujo
-                real de trabajo de un fotógrafo profesional.
+                Sin plantillas genéricas ni redes sociales disfrazadas. Una
+                galería elegante que hace que tus momentos se vean tan bien
+                como los recuerdas.
               </p>
             </div>
           </div>
@@ -224,8 +226,8 @@ export default async function Home() {
           {/* Bottom CTA */}
           <div className="mt-16 flex flex-col items-center text-center">
             <p className="text-sm font-light text-muted-foreground">
-              Deja que la inteligencia artificial trabaje por ti mientras tú
-              te enfocas en crear.
+              Deja que la IA organice tus recuerdos mientras tú te enfocas
+              en vivirlos.
             </p>
             <div className="mt-6">
               {session?.user ? (
@@ -241,7 +243,7 @@ export default async function Home() {
               ) : (
                 <SignInButton
                   className="inline-flex h-11 items-center gap-2 rounded-full bg-foreground px-7 text-sm font-medium text-background transition-opacity hover:opacity-80"
-                  label="Probar Festora gratis"
+                  label="Crear tu primer álbum"
                 />
               )}
             </div>
