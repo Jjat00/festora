@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { verifyPinToken } from "@/lib/pin";
 import { GalleryView } from "@/components/gallery/gallery-view";
+import { GalleryDownload } from "@/components/gallery/gallery-download";
 
 export default async function GalleryPage({
   params,
@@ -100,15 +101,24 @@ export default async function GalleryPage({
       </div>
 
       <div className="mx-auto max-w-7xl px-4 py-8">
-        <div className="mb-8 flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            {project.photos.length} foto{project.photos.length !== 1 && "s"}
-          </p>
-          <p className="text-sm font-medium">
-            {project._count.selections} favorita
-            {project._count.selections !== 1 && "s"} seleccionada
-            {project._count.selections !== 1 && "s"}
-          </p>
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <p className="text-sm text-muted-foreground">
+              {project.photos.length} foto{project.photos.length !== 1 && "s"}
+            </p>
+            <p className="text-sm font-medium">
+              {project._count.selections} favorita
+              {project._count.selections !== 1 && "s"} seleccionada
+              {project._count.selections !== 1 && "s"}
+            </p>
+          </div>
+          {project.photos.length > 0 && (
+            <GalleryDownload
+              slug={slug}
+              totalCount={project.photos.length}
+              favoritesCount={project._count.selections}
+            />
+          )}
         </div>
 
         {isLocked && (
