@@ -78,6 +78,17 @@ export async function GET(
   const passthrough = new PassThrough();
   archive.pipe(passthrough);
 
+  let cancelled = false;
+  function cleanup() {
+    cancelled = true;
+    try {
+      archive.abort();
+    } catch {
+      // ignore
+    }
+    passthrough.destroy();
+  }
+
   const usedNames = new Map<string, number>();
   function uniqueName(name: string): string {
     const count = usedNames.get(name) || 0;
@@ -90,6 +101,7 @@ export async function GET(
 
   (async () => {
     for (const photo of photos) {
+      if (cancelled) break;
       try {
         const command = new GetObjectCommand({
           Bucket: process.env.R2_BUCKET_NAME!,
@@ -106,14 +118,47 @@ export async function GET(
         // Skip failed files
       }
     }
-    await archive.finalize();
+    if (!cancelled) {
+      try {
+        await archive.finalize();
+      } catch {
+        // archive aborted
+      }
+    }
   })();
 
   const webStream = new ReadableStream({
     start(controller) {
-      passthrough.on("data", (chunk: Buffer) => controller.enqueue(chunk));
-      passthrough.on("end", () => controller.close());
-      passthrough.on("error", (err) => controller.error(err));
+      let closed = false;
+      passthrough.on("data", (chunk: Buffer) => {
+        if (closed) return;
+        try {
+          controller.enqueue(chunk);
+        } catch {
+          closed = true;
+        }
+      });
+      passthrough.on("end", () => {
+        if (closed) return;
+        closed = true;
+        try {
+          controller.close();
+        } catch {
+          // already closed
+        }
+      });
+      passthrough.on("error", (err) => {
+        if (closed) return;
+        closed = true;
+        try {
+          controller.error(err);
+        } catch {
+          // already closed
+        }
+      });
+    },
+    cancel() {
+      cleanup();
     },
   });
 
