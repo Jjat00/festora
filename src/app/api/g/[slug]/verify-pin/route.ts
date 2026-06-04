@@ -40,7 +40,7 @@ export async function POST(
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     maxAge: PIN_COOKIE_MAX_AGE,
-    path: `/g/${slug}`,
+    path: "/",
   });
 
   return response;
