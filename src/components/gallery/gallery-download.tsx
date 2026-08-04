@@ -2,32 +2,38 @@
 
 import {
   DownloadIcon,
+  DownloadMessage,
   DownloadProgress,
-  useStreamDownload,
+  useZipDownload,
 } from "@/components/download-progress";
 
 type Props = {
   slug: string;
+  projectName: string;
   totalCount: number;
   favoritesCount: number;
 };
 
-export function GalleryDownload({ slug, totalCount, favoritesCount }: Props) {
-  const { state, start, cancel } = useStreamDownload();
+export function GalleryDownload({
+  slug,
+  projectName,
+  totalCount,
+  favoritesCount,
+}: Props) {
+  const { state, start, cancel } = useZipDownload();
 
   function startDownload(type: "all" | "favorites") {
-    start(`/api/g/${slug}/download?type=${type}`, {
+    const base = projectName.replace(/[^a-zA-Z0-9_\- ]/g, "").trim() || "festora";
+    start(`/api/g/${slug}/download-manifest?type=${type}`, {
       label: type === "favorites" ? "favoritas" : "todas las fotos",
-      fallbackFilename: `festora-${type}.zip`,
+      suggestedName: type === "favorites" ? `${base}-favoritas.zip` : `${base}.zip`,
     });
   }
 
-  if (state.kind === "downloading") {
+  if (state.kind === "preparing" || state.kind === "downloading") {
     return (
       <DownloadProgress
-        received={state.received}
-        total={state.total}
-        label={state.label}
+        state={state}
         onCancel={cancel}
         className="w-full max-w-md sm:w-auto sm:min-w-[280px]"
       />
@@ -58,9 +64,7 @@ export function GalleryDownload({ slug, totalCount, favoritesCount }: Props) {
           <span className="text-xs opacity-70">({favoritesCount})</span>
         </button>
       </div>
-      {state.kind === "error" && (
-        <p className="text-xs text-red-500">{state.message}</p>
-      )}
+      <DownloadMessage state={state} />
     </div>
   );
 }

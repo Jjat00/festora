@@ -33,12 +33,15 @@ export async function getPresignedUploadUrl(
   return getSignedUrl(r2Client, command, { expiresIn: 3600 });
 }
 
-export async function getSignedReadUrl(objectKey: string): Promise<string> {
+export async function getSignedReadUrl(
+  objectKey: string,
+  expiresIn: number = 3600
+): Promise<string> {
   const command = new GetObjectCommand({
     Bucket: R2_BUCKET_NAME,
     Key: objectKey,
   });
-  return getSignedUrl(r2Client, command, { expiresIn: 3600 });
+  return getSignedUrl(r2Client, command, { expiresIn });
 }
 
 export async function deleteObject(objectKey: string): Promise<void> {

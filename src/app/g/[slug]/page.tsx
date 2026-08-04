@@ -115,6 +115,7 @@ export default async function GalleryPage({
           {project.photos.length > 0 && (
             <GalleryDownload
               slug={slug}
+              projectName={project.name}
               totalCount={project.photos.length}
               favoritesCount={project._count.selections}
             />

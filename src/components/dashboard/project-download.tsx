@@ -2,8 +2,9 @@
 
 import {
   DownloadIcon,
+  DownloadMessage,
   DownloadProgress,
-  useStreamDownload,
+  useZipDownload,
 } from "@/components/download-progress";
 
 export function ProjectDownload({
@@ -15,28 +16,28 @@ export function ProjectDownload({
   projectName: string;
   totalCount: number;
 }) {
-  const { state, start, cancel } = useStreamDownload();
+  const { state, start, cancel } = useZipDownload();
 
-  if (state.kind === "downloading") {
+  if (state.kind === "preparing" || state.kind === "downloading") {
     return (
       <DownloadProgress
-        received={state.received}
-        total={state.total}
-        label={state.label}
+        state={state}
         onCancel={cancel}
         className="w-full min-w-[220px] sm:w-auto sm:max-w-[280px]"
       />
     );
   }
 
+  const base = projectName.replace(/[^a-zA-Z0-9_\- ]/g, "").trim() || "festora";
+
   return (
     <div className="flex flex-col items-end gap-1">
       <button
         type="button"
         onClick={() =>
-          start(`/api/projects/${projectId}/download?type=all`, {
+          start(`/api/projects/${projectId}/download-manifest?type=all`, {
             label: "todas las fotos",
-            fallbackFilename: `${projectName || "festora"}.zip`,
+            suggestedName: `${base}.zip`,
           })
         }
         className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm transition-colors hover:border-accent"
@@ -45,9 +46,7 @@ export function ProjectDownload({
         Descargar todas
         <span className="text-xs text-muted-foreground">({totalCount})</span>
       </button>
-      {state.kind === "error" && (
-        <p className="text-xs text-red-500">{state.message}</p>
-      )}
+      <DownloadMessage state={state} />
     </div>
   );
 }

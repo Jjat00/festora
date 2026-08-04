@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { Lightbox } from "@/components/lightbox";
 import {
+  DownloadMessage,
   DownloadProgress,
-  useStreamDownload,
+  useZipDownload,
 } from "@/components/download-progress";
 
 interface SelectionItem {
@@ -27,7 +28,7 @@ export function SelectionsView({
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const { state: downloadState, start: startDownload, cancel: cancelDownload } =
-    useStreamDownload();
+    useZipDownload();
 
   function handleExportCSV() {
     const csv = [
@@ -45,9 +46,11 @@ export function SelectionsView({
   }
 
   function handleDownload() {
-    startDownload(`/api/projects/${projectId}/download?type=favorites`, {
+    const base =
+      projectName.replace(/[^a-zA-Z0-9_\- ]/g, "").trim() || "festora";
+    startDownload(`/api/projects/${projectId}/download-manifest?type=favorites`, {
       label: "favoritas",
-      fallbackFilename: `${projectName || "festora"}-favoritas.zip`,
+      suggestedName: `${base}-favoritas.zip`,
     });
   }
 
@@ -64,11 +67,9 @@ export function SelectionsView({
 
   return (
     <div>
-      {downloadState.kind === "downloading" ? (
+      {downloadState.kind === "preparing" || downloadState.kind === "downloading" ? (
         <DownloadProgress
-          received={downloadState.received}
-          total={downloadState.total}
-          label={downloadState.label}
+          state={downloadState}
           onCancel={cancelDownload}
           className="mb-6 w-full max-w-md"
         />
@@ -86,9 +87,7 @@ export function SelectionsView({
           >
             Descargar favoritas
           </button>
-          {downloadState.kind === "error" && (
-            <p className="text-xs text-red-500">{downloadState.message}</p>
-          )}
+          <DownloadMessage state={downloadState} />
         </div>
       )}
 
