@@ -298,10 +298,13 @@ export function DownloadProgress({
   state,
   onCancel,
   className = "",
+  tone = "default",
 }: {
   state: Extract<DownloadState, { kind: "preparing" | "downloading" }>;
   onCancel: () => void;
   className?: string;
+  /** `onDark` para cuando la barra va sobre una imagen o un fondo oscuro. */
+  tone?: "default" | "onDark";
 }) {
   const isPreparing = state.kind === "preparing";
   const pct =
@@ -309,9 +312,17 @@ export function DownloadProgress({
       ? Math.min(100, Math.round((state.received / state.total) * 100))
       : 0;
 
+  const onDark = tone === "onDark";
+  const textClass = onDark ? "text-white/70" : "text-muted-foreground";
+  const trackClass = onDark ? "bg-white/20" : "bg-muted";
+  const barClass = onDark ? "bg-white" : "bg-foreground";
+  const cancelClass = onDark
+    ? "font-medium text-white/80 hover:text-white"
+    : "font-medium text-foreground/70 hover:text-foreground";
+
   return (
     <div className={`flex flex-col gap-2 ${className}`}>
-      <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
+      <div className={`flex items-center justify-between gap-4 text-xs ${textClass}`}>
         <span>
           {isPreparing ? `Preparando ${state.label}…` : `Descargando ${state.label}…`}
           {!isPreparing && state.parts > 1 && (
@@ -320,23 +331,19 @@ export function DownloadProgress({
             </span>
           )}
         </span>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="font-medium text-foreground/70 hover:text-foreground"
-        >
+        <button type="button" onClick={onCancel} className={cancelClass}>
           Cancelar
         </button>
       </div>
-      <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+      <div className={`h-2 w-full overflow-hidden rounded-full ${trackClass}`}>
         <div
-          className={`h-full rounded-full bg-foreground transition-[width] duration-150 ease-out ${
+          className={`h-full rounded-full transition-[width] duration-150 ease-out ${barClass} ${
             isPreparing ? "animate-pulse" : ""
           }`}
           style={{ width: isPreparing ? "8%" : `${pct}%` }}
         />
       </div>
-      <div className="flex items-center justify-between text-xs text-muted-foreground tabular-nums">
+      <div className={`flex items-center justify-between text-xs tabular-nums ${textClass}`}>
         <span>{isPreparing ? "—" : `${pct}%`}</span>
         <span>
           {!isPreparing && (

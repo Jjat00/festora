@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { updateAlbumName, deleteAlbum } from "@/lib/actions/album-actions";
 import { Lightbox, type LightboxPhoto } from "@/components/lightbox";
+import {
+  DownloadMessage,
+  DownloadProgress,
+  useZipDownload,
+} from "@/components/download-progress";
 import type { AlbumSuggestion, Prisma } from "@prisma/client";
 
 type PhotoWithSelection = Prisma.PhotoGetPayload<{
@@ -56,12 +61,19 @@ export function AlbumDetail({
   album,
   photos,
   projectId,
+  projectName,
 }: {
   album: AlbumSuggestion;
   photos: PhotoWithSelection[];
   projectId: string;
+  projectName: string;
 }) {
   const router = useRouter();
+  const {
+    state: downloadState,
+    start: startDownload,
+    cancel: cancelDownload,
+  } = useZipDownload();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(album.name);
   const [saving, setSaving] = useState(false);
@@ -104,9 +116,16 @@ export function AlbumDetail({
   }
 
   function handleDownload() {
-    window.open(
-      `/api/projects/${projectId}/download?type=album&category=${encodeURIComponent(album.category)}`,
-      "_blank"
+    const sanitize = (value: string) =>
+      value.replace(/[^a-zA-Z0-9_\- ]/g, "").trim();
+    const base = sanitize(projectName) || "festora";
+    const albumPart = sanitize(album.name) || "album";
+    startDownload(
+      `/api/projects/${projectId}/download-manifest?type=album&albumId=${album.id}`,
+      {
+        label: `«${album.name}»`,
+        suggestedName: `${base}-${albumPart}.zip`,
+      }
     );
   }
 
@@ -130,6 +149,8 @@ export function AlbumDetail({
 
   const coverPhoto = photos[0];
   const categoryLabel = CATEGORY_LABELS[album.category] ?? album.category;
+  const isDownloading =
+    downloadState.kind === "preparing" || downloadState.kind === "downloading";
 
   return (
     <div className="-mx-6 -mt-6">
@@ -181,7 +202,8 @@ export function AlbumDetail({
           </button>
           <button
             onClick={handleDownload}
-            className="rounded-lg bg-black/40 p-2 text-white/90 backdrop-blur-sm transition-colors hover:bg-black/60"
+            disabled={isDownloading}
+            className="rounded-lg bg-black/40 p-2 text-white/90 backdrop-blur-sm transition-colors hover:bg-black/60 disabled:cursor-not-allowed disabled:opacity-40"
             title="Descargar ZIP"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -198,6 +220,22 @@ export function AlbumDetail({
             </svg>
           </button>
         </div>
+
+        {/* Progreso de descarga — sobre la portada, bajo los botones */}
+        {isDownloading && (
+          <div className="absolute right-4 top-16 z-30 w-64 rounded-lg bg-black/50 p-3 backdrop-blur-sm">
+            <DownloadProgress
+              state={downloadState}
+              onCancel={cancelDownload}
+              tone="onDark"
+            />
+          </div>
+        )}
+        {(downloadState.kind === "error" || downloadState.kind === "warning") && (
+          <div className="absolute right-4 top-16 z-30 max-w-64 rounded-lg bg-black/60 px-3 py-2 backdrop-blur-sm">
+            <DownloadMessage state={downloadState} />
+          </div>
+        )}
 
         {/* Album info overlay */}
         <div className="absolute bottom-0 left-0 z-30 px-6 pb-5">

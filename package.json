@@ -19,7 +19,6 @@
     "@tsparticles/react": "^3.0.0",
     "@tsparticles/slim": "^3.9.1",
     "ai": "^6.0.99",
-    "archiver": "^7.0.1",
     "bcryptjs": "^3.0.3",
     "client-zip": "^2.5.0",
     "framer-motion": "^12.34.2",
@@ -31,7 +30,6 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/archiver": "^7.0.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/react": "^19",

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { buildDownloadManifest, safeProjectName } from "@/lib/download-manifest";
+import { albumPhotoQuery } from "@/lib/album-photos";
 
 /**
  * Lista de fotos + URLs prefirmadas para que el navegador arme el ZIP.
@@ -19,7 +20,7 @@ export async function GET(
 
   const { projectId } = await params;
   const type = req.nextUrl.searchParams.get("type") || "favorites";
-  const category = req.nextUrl.searchParams.get("category");
+  const albumId = req.nextUrl.searchParams.get("albumId");
 
   const project = await prisma.project.findUnique({
     where: { id: projectId, userId: session.user.id },
@@ -36,12 +37,19 @@ export async function GET(
     size: true,
   } as const;
 
+  let album = null;
   let photos;
-  if (type === "album" && category) {
+  if (type === "album") {
+    if (!albumId) {
+      return NextResponse.json({ error: "Missing albumId" }, { status: 400 });
+    }
+    album = await prisma.albumSuggestion.findUnique({ where: { id: albumId } });
+    if (!album || album.projectId !== projectId) {
+      return NextResponse.json({ error: "Album not found" }, { status: 404 });
+    }
     photos = await prisma.photo.findMany({
-      where: { projectId, llmCategory: category },
+      ...albumPhotoQuery(album, projectId),
       select,
-      orderBy: { compositeScore: "desc" },
     });
   } else if (type === "favorites") {
     photos = await prisma.photo.findMany({
@@ -65,12 +73,11 @@ export async function GET(
   }
 
   const safeName = safeProjectName(project.name);
-  const zipName =
-    type === "album" && category
-      ? `${safeName}-${category}.zip`
-      : type === "favorites"
-        ? `${safeName}-favoritas.zip`
-        : `${safeName}.zip`;
+  const zipName = album
+    ? `${safeName}-${safeProjectName(album.name)}.zip`
+    : type === "favorites"
+      ? `${safeName}-favoritas.zip`
+      : `${safeName}.zip`;
 
   const manifest = await buildDownloadManifest(photos, zipName);
 
