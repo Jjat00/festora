@@ -2,6 +2,10 @@
 
 import { useState } from "react";
 import { Lightbox } from "@/components/lightbox";
+import {
+  DownloadProgress,
+  useStreamDownload,
+} from "@/components/download-progress";
 
 interface SelectionItem {
   id: string;
@@ -22,6 +26,9 @@ export function SelectionsView({
   selections: SelectionItem[];
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const { state: downloadState, start: startDownload, cancel: cancelDownload } =
+    useStreamDownload();
+
   function handleExportCSV() {
     const csv = [
       "photo_id,filename",
@@ -38,10 +45,10 @@ export function SelectionsView({
   }
 
   function handleDownload() {
-    window.open(
-      `/api/projects/${projectId}/download?type=favorites`,
-      "_blank"
-    );
+    startDownload(`/api/projects/${projectId}/download?type=favorites`, {
+      label: "favoritas",
+      fallbackFilename: `${projectName || "festora"}-favoritas.zip`,
+    });
   }
 
   if (selections.length === 0) {
@@ -57,20 +64,33 @@ export function SelectionsView({
 
   return (
     <div>
-      <div className="mb-6 flex gap-3">
-        <button
-          onClick={handleExportCSV}
-          className="rounded-lg border border-border px-4 py-2 text-sm hover:border-accent"
-        >
-          Exportar CSV
-        </button>
-        <button
-          onClick={handleDownload}
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
-        >
-          Descargar favoritas
-        </button>
-      </div>
+      {downloadState.kind === "downloading" ? (
+        <DownloadProgress
+          received={downloadState.received}
+          total={downloadState.total}
+          label={downloadState.label}
+          onCancel={cancelDownload}
+          className="mb-6 w-full max-w-md"
+        />
+      ) : (
+        <div className="mb-6 flex flex-wrap items-center gap-3">
+          <button
+            onClick={handleExportCSV}
+            className="rounded-lg border border-border px-4 py-2 text-sm hover:border-accent"
+          >
+            Exportar CSV
+          </button>
+          <button
+            onClick={handleDownload}
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+          >
+            Descargar favoritas
+          </button>
+          {downloadState.kind === "error" && (
+            <p className="text-xs text-red-500">{downloadState.message}</p>
+          )}
+        </div>
+      )}
 
       <div
         className="flex flex-wrap gap-px after:content-[''] after:grow-10"

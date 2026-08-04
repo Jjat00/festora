@@ -28,23 +28,29 @@ export async function GET(
 
   const category = req.nextUrl.searchParams.get("category");
 
+  const select = {
+    objectKey: true,
+    originalFilename: true,
+    size: true,
+  } as const;
+
   let photos;
   if (type === "album" && category) {
     photos = await prisma.photo.findMany({
       where: { projectId, llmCategory: category },
-      select: { objectKey: true, originalFilename: true },
+      select,
       orderBy: { compositeScore: "desc" },
     });
   } else if (type === "favorites") {
     photos = await prisma.photo.findMany({
       where: { projectId, selection: { isNot: null } },
-      select: { objectKey: true, originalFilename: true },
+      select,
       orderBy: { order: "asc" },
     });
   } else {
     photos = await prisma.photo.findMany({
       where: { projectId },
-      select: { objectKey: true, originalFilename: true },
+      select,
       orderBy: { order: "asc" },
     });
   }
@@ -68,14 +74,38 @@ export async function GET(
       headers: {
         "Content-Type": response.ContentType || "image/jpeg",
         "Content-Disposition": `attachment; filename="${photos[0].originalFilename}"`,
+        "Content-Length": String(photos[0].size),
+        "X-Total-Size": String(photos[0].size),
+        "Access-Control-Expose-Headers": "X-Total-Size",
       },
     });
   }
+
+  // Estimar tamaño total del ZIP (store mode, sin compresión):
+  // - Cada archivo: local header ~30 + filename + data + central dir entry ~46 + filename
+  // - EOCD: 22 bytes
+  const filesBytes = photos.reduce((sum, p) => sum + p.size, 0);
+  const overheadBytes = photos.reduce(
+    (sum, p) => sum + 76 + 2 * Buffer.byteLength(p.originalFilename, "utf8"),
+    22
+  );
+  const estimatedTotal = filesBytes + overheadBytes;
 
   // Multiple photos: stream as ZIP
   const archive = archiver("zip", { store: true });
   const passthrough = new PassThrough();
   archive.pipe(passthrough);
+
+  let cancelled = false;
+  function cleanup() {
+    cancelled = true;
+    try {
+      archive.abort();
+    } catch {
+      // ignore
+    }
+    passthrough.destroy();
+  }
 
   // Deduplicate filenames
   const usedNames = new Map<string, number>();
@@ -90,6 +120,7 @@ export async function GET(
 
   (async () => {
     for (const photo of photos) {
+      if (cancelled) break;
       try {
         const command = new GetObjectCommand({
           Bucket: process.env.R2_BUCKET_NAME!,
@@ -106,14 +137,47 @@ export async function GET(
         // Skip failed files
       }
     }
-    await archive.finalize();
+    if (!cancelled) {
+      try {
+        await archive.finalize();
+      } catch {
+        // archive aborted
+      }
+    }
   })();
 
   const webStream = new ReadableStream({
     start(controller) {
-      passthrough.on("data", (chunk: Buffer) => controller.enqueue(chunk));
-      passthrough.on("end", () => controller.close());
-      passthrough.on("error", (err) => controller.error(err));
+      let closed = false;
+      passthrough.on("data", (chunk: Buffer) => {
+        if (closed) return;
+        try {
+          controller.enqueue(chunk);
+        } catch {
+          closed = true;
+        }
+      });
+      passthrough.on("end", () => {
+        if (closed) return;
+        closed = true;
+        try {
+          controller.close();
+        } catch {
+          // already closed
+        }
+      });
+      passthrough.on("error", (err) => {
+        if (closed) return;
+        closed = true;
+        try {
+          controller.error(err);
+        } catch {
+          // already closed
+        }
+      });
+    },
+    cancel() {
+      cleanup();
     },
   });
 
@@ -129,6 +193,8 @@ export async function GET(
     headers: {
       "Content-Type": "application/zip",
       "Content-Disposition": `attachment; filename="${filename}"`,
+      "X-Total-Size": String(estimatedTotal),
+      "Access-Control-Expose-Headers": "X-Total-Size",
     },
   });
 }

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getProject } from "@/lib/actions/project-actions";
 import { prisma } from "@/lib/prisma";
 import { ProjectActions } from "@/components/dashboard/project-actions";
+import { ProjectDownload } from "@/components/dashboard/project-download";
 import { CopyGalleryLink } from "@/components/dashboard/copy-gallery-link";
 import { ProjectTabs } from "@/components/dashboard/project-tabs";
 
@@ -69,7 +70,16 @@ export default async function ProjectLayout({
               {STATUS_LABELS[project.status]}
             </p>
           </div>
-          <ProjectActions projectId={project.id} status={project.status} />
+          <div className="flex flex-wrap items-start justify-end gap-2">
+            {project._count.photos > 0 && (
+              <ProjectDownload
+                projectId={project.id}
+                projectName={project.name}
+                totalCount={project._count.photos}
+              />
+            )}
+            <ProjectActions projectId={project.id} status={project.status} />
+          </div>
         </div>
 
         {/* Compact stats row */}
