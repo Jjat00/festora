@@ -27,7 +27,9 @@ Festora is a photographer gallery SaaS. Photographers create projects, upload ph
 
 **Auth split**: Auth.js v5 config is split into `src/auth.config.ts` (edge-safe, no Prisma) and `src/auth.ts` (full config with PrismaAdapter). Middleware uses the edge-safe config.
 
-**Photo delivery**: Photos are never served directly from R2 public URLs. All image access goes through API routes (`/api/photo/[id]/thumbnail`, `/api/photo/[id]/view`, `/api/photo/[id]/download`) that generate short-lived presigned URLs.
+**Photo delivery**: Browsing (thumbnails, lightbox, single-photo download) goes through API routes (`/api/photo/[id]/thumbnail`, `/api/photo/[id]/view`, `/api/photo/[id]/download`) that stream from R2 — no public bucket URLs.
+
+**Bulk download**: The ZIP is assembled **in the browser**, not on the server. A serverless function can neither hold a 5 GB response within its duration limit nor should it proxy that traffic twice. The server only returns a manifest (`/api/projects/[projectId]/download-manifest`, `/api/g/[slug]/download-manifest`) with deduplicated filenames, sizes and 6-hour presigned R2 URLs; the client fetches each original directly from the bucket and builds the ZIP with `client-zip` (`src/components/download-progress.tsx`). With File System Access API it streams to disk (constant memory, no size ceiling); otherwise it splits into 500 MB parts. Failed photos are retried 3× and then skipped with a warning instead of killing the whole download.
 
 **PIN protection**: PINs are bcrypt-hashed in the DB. On verify, a JWT is issued and stored as an HttpOnly cookie (7-day expiry). Subsequent gallery visits validate the cookie without hitting the DB.
 
@@ -49,7 +51,8 @@ src/app/
 │       ├── page.tsx      # Overview
 │       ├── photos/       # Upload + manage
 │       ├── settings/     # Project settings + slug/PIN
-│       └── selections/   # View client selections + ZIP download
+│       ├── albums/       # AI album suggestions
+│       └── selections/   # View client selections + download
 ├── g/[slug]/             # Public gallery
 │   ├── page.tsx          # Gallery view or redirect to /pin
 │   └── pin/              # PIN entry
@@ -57,7 +60,8 @@ src/app/
 │   ├── auth/[...nextauth]/
 │   ├── upload/presign/
 │   ├── photo/[id]/{thumbnail,view,download}/
-│   ├── projects/[projectId]/download/   # ZIP of selected photos
+│   ├── projects/[projectId]/download-manifest/  # ?type=all|favorites|album&albumId=
+│   ├── g/[slug]/download-manifest/              # ?type=all|favorites (PIN-gated)
 │   └── g/[slug]/verify-pin/
 └── page.tsx              # Landing page
 ```
