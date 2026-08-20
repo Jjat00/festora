@@ -250,6 +250,35 @@ export default async function Home() {
           </div>
         </div>
       </section>
+
+      {/* ── Footer ── */}
+      <footer className="relative z-10 border-t border-border/50 bg-background">
+        <div className="mx-auto flex max-w-5xl flex-col items-center gap-6 px-6 py-12 sm:flex-row sm:justify-between sm:px-10">
+          <div className="flex items-center gap-3">
+            <Image
+              src="/assets/logo.png"
+              alt="Festora"
+              width={22}
+              height={22}
+              className="dark:brightness-0 dark:invert"
+            />
+            <span className="text-xs font-light text-muted-foreground">
+              &copy; {new Date().getFullYear()} Festora
+            </span>
+          </div>
+          <div className="flex flex-col items-center gap-2 sm:flex-row sm:gap-6">
+            <span className="text-xs font-light text-muted-foreground">
+              Tus fotos son privadas. Nadie más las ve.
+            </span>
+            <Link
+              href="/privacidad"
+              className="text-xs font-medium text-foreground/80 underline-offset-4 transition-colors hover:text-foreground hover:underline"
+            >
+              Privacidad
+            </Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

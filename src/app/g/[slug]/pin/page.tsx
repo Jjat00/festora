@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 
 export default function PinPage() {
@@ -64,6 +65,17 @@ export default function PinPage() {
             {loading ? "Verificando..." : "Acceder"}
           </button>
         </form>
+
+        <p className="mt-8 text-center text-xs font-light leading-relaxed text-muted-foreground">
+          Esta galería está protegida con un PIN que ni nosotros podemos leer.
+          Las fotos nunca son públicas.{" "}
+          <Link
+            href="/privacidad"
+            className="font-medium text-foreground/80 underline-offset-4 transition-colors hover:text-foreground hover:underline"
+          >
+            Saber más
+          </Link>
+        </p>
       </div>
     </div>
   );

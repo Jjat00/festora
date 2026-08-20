@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
@@ -143,6 +144,20 @@ export default async function GalleryPage({
           totalSelected={project._count.selections}
           isLocked={isLocked}
         />
+
+        {/* Nota de privacidad para el invitado */}
+        <footer className="mt-16 border-t border-border/50 pt-6 text-center">
+          <p className="text-xs font-light text-muted-foreground">
+            Galería privada. Solo la ve quien tenga este enlace: no aparece en
+            buscadores ni se comparte con nadie.{" "}
+            <Link
+              href="/privacidad"
+              className="font-medium text-foreground/80 underline-offset-4 transition-colors hover:text-foreground hover:underline"
+            >
+              Cómo protegemos tus fotos
+            </Link>
+          </p>
+        </footer>
       </div>
     </div>
   );
