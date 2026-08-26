@@ -13,10 +13,27 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://festora.studio";
+const DESCRIPCION =
+  "Comparte tus fotos con tus clientes de forma profesional y elegante.";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(APP_URL),
   title: "Festora",
-  description:
-    "Comparte tus fotos con tus clientes de forma profesional y elegante.",
+  description: DESCRIPCION,
+  openGraph: {
+    type: "website",
+    siteName: "Festora",
+    locale: "es_CO",
+    url: APP_URL,
+    title: "Festora",
+    description: DESCRIPCION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Festora",
+    description: DESCRIPCION,
+  },
 };
 
 export default function RootLayout({
