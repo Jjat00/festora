@@ -6,7 +6,7 @@ import { getDictionary } from "@/lib/i18n/dictionaries";
 import { homeSchema } from "@/lib/marketing-schema";
 import { buildMetadata } from "@/lib/seo";
 
-const LOCALE = "es" as const;
+const LOCALE = "en" as const;
 const dict = getDictionary(LOCALE);
 
 export const metadata: Metadata = buildMetadata({

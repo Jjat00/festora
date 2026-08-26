@@ -1,11 +1,16 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { absoluteUrl } from "@/lib/seo";
 
 export const metadata: Metadata = {
   title: "Privacidad · Festora",
   description:
-    "Cómo Festora guarda, protege y comparte tus fotos: almacenamiento privado, enlaces temporales y la promesa de que nadie —tampoco nosotros— curiosea tus galerías.",
+    "Cómo Festora guarda, protege y comparte tus fotos: almacenamiento privado, enlaces temporales y la promesa de que nadie, tampoco nosotros, curiosea tus galerías.",
+  alternates: {
+    canonical: absoluteUrl("/privacidad"),
+    languages: { es: absoluteUrl("/privacidad") },
+  },
 };
 
 const ACTUALIZADO = "20 de agosto de 2026";
@@ -96,7 +101,7 @@ export default function PrivacidadPage() {
               alt="Festora"
               width={26}
               height={26}
-              className="dark:brightness-0 dark:invert"
+              className="invert dark:invert-0"
             />
             <span className="text-sm font-medium tracking-tight">Festora</span>
           </Link>

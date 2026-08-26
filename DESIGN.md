@@ -12,7 +12,7 @@ Festora es una plataforma para fotógrafos. La interfaz debe **desaparecer** par
 - **Tipográfico antes que decorativo** — jerarquía resuelta con peso y tamaño, no con cajas, sombras ni bordes pesados.
 - **Ligero por defecto** — `font-weight: 300` en body, mucho `text-muted-foreground`, bordes sutiles (`border/60`), radios generosos.
 - **Adaptativo** — light y dark mode son ciudadanos de primera clase vía `prefers-color-scheme` y custom properties.
-- **Idioma** — toda la UI está en Español.
+- **Idioma** — la aplicación (dashboard y galerías) está en Español. El sitio público de marketing es bilingüe: Español en la raíz e Inglés bajo `/en`, con los textos en `src/lib/i18n/dictionaries/`.
 
 Si una decisión de diseño compite con una foto del cliente, la decisión está mal.
 

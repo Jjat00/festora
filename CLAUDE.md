@@ -31,6 +31,12 @@ Festora is a photographer gallery SaaS. Photographers create projects, upload ph
 
 **Bulk download**: The ZIP is assembled **in the browser**, not on the server. A serverless function can neither hold a 5 GB response within its duration limit nor should it proxy that traffic twice. The server only returns a manifest (`/api/projects/[projectId]/download-manifest`, `/api/g/[slug]/download-manifest`) with deduplicated filenames, sizes and 6-hour presigned R2 URLs; the client fetches each original directly from the bucket and builds the ZIP with `client-zip` (`src/components/download-progress.tsx`). With File System Access API it streams to disk (constant memory, no size ceiling); otherwise it splits into 500 MB parts. Failed photos are retried 3× and then skipped with a warning instead of killing the whole download.
 
+**Public site vs app**: everything under `/` that is not `(dashboard)` or `/g/` is the marketing site, and it is **bilingual**: Spanish at the root (`/precios`, `/como-funciona`, `/preguntas-frecuentes`) and English under `/en`. Copy lives in `src/lib/i18n/dictionaries/{es,en}.ts` — the English dictionary is typed against the Spanish one, so a missing key is a build error. Route names per locale live in `src/lib/i18n/config.ts`; never hardcode a marketing path. The app itself (dashboard, galleries) stays Spanish-only.
+
+**SEO/GEO**: `src/lib/seo.ts` is the single source for canonical URLs, hreflang and JSON-LD builders; `src/lib/marketing-schema.ts` composes the per-page `@graph`. Every public page ships `Organization` + its own type (`SoftwareApplication`, `HowTo`, `FAQPage`, `BreadcrumbList`). `/robots.txt` and `/sitemap.xml` are generated (`src/app/robots.ts`, `src/app/sitemap.ts`), and `/llms.txt` and `/pricing.md` are route handlers built from the same dictionaries so they cannot contradict the pages. Only claims backed by shipped features go in them.
+
+**Canonical host**: the canonical origin is `NEXT_PUBLIC_APP_URL` (`https://festora.studio`). `src/proxy.ts` sets `X-Robots-Tag: noindex` on any other host so `festora-gamma.vercel.app` and preview deploys cannot compete as duplicate content. The proxy also writes `x-pathname`, which the root layout reads to set `<html lang>` — that is why every page renders dynamically.
+
 **PIN protection**: PINs are bcrypt-hashed in the DB. On verify, a JWT is issued and stored as an HttpOnly cookie (7-day expiry). Subsequent gallery visits validate the cookie without hitting the DB.
 
 ### Storage Layout (R2)
@@ -44,7 +50,7 @@ Festora is a photographer gallery SaaS. Photographers create projects, upload ph
 
 ```
 src/app/
-├── (dashboard)/          # Auth-protected route group
+├── (dashboard)/          # Auth-protected route group (noindex)
 │   ├── layout.tsx        # Auth guard + nav shell
 │   ├── dashboard/        # Projects list
 │   └── projects/[projectId]/
@@ -53,9 +59,10 @@ src/app/
 │       ├── settings/     # Project settings + slug/PIN
 │       ├── albums/       # AI album suggestions
 │       └── selections/   # View client selections + download
-├── g/[slug]/             # Public gallery
-│   ├── page.tsx          # Gallery view or redirect to /pin
-│   └── pin/              # PIN entry
+├── g/                    # Public gallery — layout.tsx forces noindex
+│   └── [slug]/
+│       ├── page.tsx      # Gallery view or redirect to /pin
+│       └── pin/          # PIN entry
 ├── api/
 │   ├── auth/[...nextauth]/
 │   ├── upload/presign/
@@ -63,8 +70,23 @@ src/app/
 │   ├── projects/[projectId]/download-manifest/  # ?type=all|favorites|album&albumId=
 │   ├── g/[slug]/download-manifest/              # ?type=all|favorites (PIN-gated)
 │   └── g/[slug]/verify-pin/
-└── page.tsx              # Landing page
+├── page.tsx              # Landing (es)
+├── como-funciona/        # How it works (es)
+├── precios/              # Pricing (es)
+├── preguntas-frecuentes/ # FAQ (es)
+├── privacidad/           # Privacy policy — Spanish only
+├── en/                   # Same marketing site in English
+│   ├── page.tsx
+│   ├── how-it-works/
+│   ├── pricing/
+│   └── faq/
+├── robots.ts             # /robots.txt
+├── sitemap.ts            # /sitemap.xml with hreflang alternates
+├── llms.txt/route.ts     # AI-assistant context (llmstxt.org)
+└── pricing.md/route.ts   # Machine-readable pricing for AI agents
 ```
+
+Marketing pages are thin: they build metadata with `buildMetadata()`, emit their `@graph`, and render a shared component from `src/components/marketing/`.
 
 ### Server Actions
 
@@ -103,4 +125,5 @@ Generate `AUTH_SECRET` with: `npx auth secret`
 - Path alias `@/*` maps to `./src/*`
 - Dark/light mode via CSS custom properties (`--background`, `--foreground`, `--muted`, `--border`, `--accent`) and `prefers-color-scheme`
 - Fonts: Urbanist (UI) + Geist Mono (monospace)
-- UI text is in Spanish
+- App UI text is in Spanish; the public marketing site is Spanish + English via the dictionaries
+- Public-facing copy must describe shipped behaviour only — `llms.txt` deliberately lists what Festora does *not* do yet

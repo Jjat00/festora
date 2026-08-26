@@ -1,19 +1,19 @@
 import type { Metadata } from "next";
 import { auth } from "@/auth";
 import { JsonLd } from "@/components/json-ld";
-import { Landing } from "@/components/marketing/landing";
+import { HowItWorksContent } from "@/components/marketing/how-it-works-content";
 import { getDictionary } from "@/lib/i18n/dictionaries";
-import { homeSchema } from "@/lib/marketing-schema";
+import { howItWorksSchema } from "@/lib/marketing-schema";
 import { buildMetadata } from "@/lib/seo";
 
-const LOCALE = "es" as const;
+const LOCALE = "en" as const;
 const dict = getDictionary(LOCALE);
 
 export const metadata: Metadata = buildMetadata({
-  page: "home",
+  page: "howItWorks",
   locale: LOCALE,
-  title: dict.meta.home.title,
-  description: dict.meta.home.description,
+  title: dict.meta.howItWorks.title,
+  description: dict.meta.howItWorks.description,
 });
 
 export default async function Page() {
@@ -21,8 +21,8 @@ export default async function Page() {
 
   return (
     <>
-      <JsonLd data={homeSchema(dict, LOCALE)} />
-      <Landing dict={dict} locale={LOCALE} signedIn={Boolean(session?.user)} />
+      <JsonLd data={howItWorksSchema(dict, LOCALE)} />
+      <HowItWorksContent dict={dict} locale={LOCALE} signedIn={Boolean(session?.user)} />
     </>
   );
 }
