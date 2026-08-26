@@ -1,0 +1,16 @@
+-- Migracion vacia a proposito, para reconciliar el historial.
+--
+-- Esta migracion se genero contra produccion el 2026-04-15 durante el
+-- incidente del indice HNSW (ver `5d5ad13`), y nunca se llego a commitear.
+-- La tabla `_prisma_migrations` la tiene registrada como aplicada, asi que
+-- `prisma migrate status` avisaba de historial divergido en cada comprobacion.
+--
+-- Su efecto real ya esta cubierto por las dos migraciones que si estan en el
+-- repo: `20260415050034` (drop del indice) y
+-- `20260415060000_restore_embedding_hnsw_index` (restauracion). Se comprobo con
+-- `prisma migrate diff` que el esquema de produccion coincide con schema.prisma,
+-- asi que aqui no falta nada que aplicar.
+--
+-- Se deja como no-op en lugar de borrar la fila de `_prisma_migrations` porque
+-- reconcilia igual, sin escribir en la base de produccion, y deja el porque
+-- escrito donde se va a buscar.
