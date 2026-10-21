@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ALLOWED_IMAGE_TYPES,
   GUEST_MAX_FILE_SIZE,
   GUEST_MAX_FILES_PER_REQUEST,
+  GUEST_MAX_THUMBNAIL_SIZE,
   GUEST_NAME_MAX_LENGTH,
   THUMBNAIL_MAX_WIDTH,
 } from "@/lib/constants";
@@ -15,6 +15,7 @@ import {
 const MAX_SIDE = 2560;
 const CONCURRENCY = 3;
 const NAME_KEY = "festora-guest-name";
+const KEEP_AS_IS = ["image/jpeg", "image/png", "image/webp"];
 
 type Prepared = {
   original: Blob;
@@ -24,6 +25,8 @@ type Prepared = {
   height: number;
   filename: string;
 };
+
+type Item = { file: File; status: "pending" | "done" | "failed" };
 
 async function drawScaled(bitmap: ImageBitmap, maxSide: number, type: string, quality: number) {
   const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
@@ -36,20 +39,28 @@ async function drawScaled(bitmap: ImageBitmap, maxSide: number, type: string, qu
   );
 }
 
+/** Reduce y normaliza: lo que no sea JPEG, PNG o WebP (p. ej. HEIC) sale como JPEG. */
 async function prepare(file: File): Promise<Prepared> {
   // imageOrientation respeta el EXIF: sin esto las fotos verticales salen acostadas
   const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
   try {
-    const needsResize = Math.max(bitmap.width, bitmap.height) > MAX_SIDE || file.size > 4 * 1024 * 1024;
-    const original = needsResize ? await drawScaled(bitmap, MAX_SIDE, "image/jpeg", 0.85) : file;
-    const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+    const reencode =
+      !KEEP_AS_IS.includes(file.type) ||
+      Math.max(bitmap.width, bitmap.height) > MAX_SIDE ||
+      file.size > 4 * 1024 * 1024;
+    const scale = reencode ? Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height)) : 1;
+    const original = reencode ? await drawScaled(bitmap, MAX_SIDE, "image/jpeg", 0.85) : file;
+    const thumbnail = await drawScaled(bitmap, THUMBNAIL_MAX_WIDTH, "image/webp", 0.8);
+    if (original.size > GUEST_MAX_FILE_SIZE || thumbnail.size > GUEST_MAX_THUMBNAIL_SIZE) {
+      throw new Error("too-large");
+    }
     return {
       original,
-      contentType: needsResize ? "image/jpeg" : file.type,
-      thumbnail: await drawScaled(bitmap, THUMBNAIL_MAX_WIDTH, "image/webp", 0.8),
-      width: Math.round(bitmap.width * (needsResize ? scale : 1)),
-      height: Math.round(bitmap.height * (needsResize ? scale : 1)),
-      filename: needsResize ? file.name.replace(/\.[^.]+$/, "") + ".jpg" : file.name,
+      contentType: reencode ? "image/jpeg" : file.type,
+      thumbnail,
+      width: Math.round(bitmap.width * scale),
+      height: Math.round(bitmap.height * scale),
+      filename: reencode ? file.name.replace(/\.[^.]+$/, "") + ".jpg" : file.name,
     };
   } finally {
     bitmap.close();
@@ -64,17 +75,20 @@ const ERRORS: Record<string, string> = {
   Unauthorized: "Vuelve a ingresar el PIN de la galería.",
 };
 
+class UploadError extends Error {}
+
 export function GuestUpload({ slug, closesAt }: { slug: string; closesAt: string | null }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [files, setFiles] = useState<File[]>([]);
+  const [items, setItems] = useState<Item[]>([]);
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(0);
-  const [failed, setFailed] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
-  const [finished, setFinished] = useState<number | null>(null);
+  const [finished, setFinished] = useState<{ done: number; failed: number } | null>(null);
 
   useEffect(() => {
     try {
@@ -82,124 +96,187 @@ export function GuestUpload({ slug, closesAt }: { slug: string; closesAt: string
     } catch {}
   }, []);
 
+  // Diálogo modal de verdad: foco adentro, Tab no se escapa, Escape cierra y el
+  // foco vuelve al botón que lo abrió.
+  useEffect(() => {
+    if (!open) return;
+    const trigger = triggerRef.current;
+    nameRef.current?.focus();
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" && !busy) {
+        e.preventDefault();
+        setOpen(false);
+      }
+      if (e.key !== "Tab" || !dialogRef.current) return;
+      const focusables = dialogRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]):not([type="file"]), [href]'
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      trigger?.focus();
+    };
+  }, [open, busy]);
+
   function pick(list: FileList | null) {
     if (!list) return;
-    const accepted = Array.from(list).filter((f) => f.type.startsWith("image/"));
-    setFiles(accepted);
+    const accepted = Array.from(list).filter((f) => f.type.startsWith("image/") || /\.hei[cf]$/i.test(f.name));
+    setItems(accepted.map((file) => ({ file, status: "pending" })));
     setMessage(accepted.length < list.length ? "Solo se pueden subir fotos." : null);
     setFinished(null);
   }
 
   function reset() {
-    setFiles([]);
-    setDone(0);
-    setFailed(0);
+    setItems([]);
     setMessage(null);
     setFinished(null);
     if (inputRef.current) inputRef.current.value = "";
   }
 
-  async function uploadBatch(batch: File[]) {
-    const prepared: (Prepared | null)[] = await Promise.all(
-      batch.map((f) => prepare(f).catch(() => null))
+  function mark(file: File, status: Item["status"]) {
+    setItems((prev) => prev.map((it) => (it.file === file ? { ...it, status } : it)));
+  }
+
+  /** Sube un lote; devuelve los archivos confirmados. Lanza UploadError si el servidor lo rechaza entero. */
+  async function uploadBatch(batch: File[]): Promise<File[]> {
+    // Preparar de a CONCURRENCY: veinte bitmaps grandes a la vez revientan la memoria de un celular
+    const prepared = new Map<File, Prepared>();
+    let cursor = 0;
+    await Promise.all(
+      Array.from({ length: CONCURRENCY }, async () => {
+        while (cursor < batch.length) {
+          const file = batch[cursor++];
+          try {
+            prepared.set(file, await prepare(file));
+          } catch {
+            mark(file, "failed");
+          }
+        }
+      })
     );
-    const ok = prepared.filter(
-      (p): p is Prepared =>
-        p !== null && ALLOWED_IMAGE_TYPES.includes(p.contentType) && p.original.size <= GUEST_MAX_FILE_SIZE
-    );
-    let lost = batch.length - ok.length;
-    if (ok.length === 0) return { uploaded: 0, lost };
+    const ready = batch.filter((f) => prepared.has(f));
+    if (ready.length === 0) return [];
 
     const presign = await fetch(`/api/g/${slug}/guest-upload/presign`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ files: ok.map((p) => ({ contentType: p.contentType, size: p.original.size })) }),
+      body: JSON.stringify({
+        files: ready.map((f) => {
+          const p = prepared.get(f)!;
+          return { contentType: p.contentType, size: p.original.size, thumbnailSize: p.thumbnail.size };
+        }),
+      }),
     });
     if (!presign.ok) {
       const data = await presign.json().catch(() => ({}));
-      throw new Error(ERRORS[data.error] ?? "No pudimos subir las fotos. Intenta de nuevo.");
+      throw new UploadError(ERRORS[data.error] ?? "No pudimos subir las fotos. Intenta de nuevo.");
     }
-    const { presignedUrls } = (await presign.json()) as {
-      presignedUrls: { objectKey: string; thumbnailKey: string; uploadUrl: string; thumbnailUploadUrl: string }[];
+    const { uploads } = (await presign.json()) as {
+      uploads: { id: string; uploadUrl: string; thumbnailUploadUrl: string }[];
     };
 
-    const confirmed: object[] = [];
+    const sent: { file: File; id: string }[] = [];
     let next = 0;
-    async function worker() {
-      while (next < ok.length) {
-        const i = next++;
-        const p = ok[i];
-        const urls = presignedUrls[i];
-        try {
-          const [a, b] = await Promise.all([
-            fetch(urls.uploadUrl, { method: "PUT", body: p.original, headers: { "Content-Type": p.contentType } }),
-            fetch(urls.thumbnailUploadUrl, { method: "PUT", body: p.thumbnail, headers: { "Content-Type": "image/webp" } }),
-          ]);
-          if (!a.ok || !b.ok) throw new Error("put");
-          confirmed.push({
-            objectKey: urls.objectKey,
-            thumbnailKey: urls.thumbnailKey,
-            originalFilename: p.filename,
-            width: p.width,
-            height: p.height,
-          });
-          setDone((d) => d + 1);
-        } catch {
-          lost++;
-          setFailed((f) => f + 1);
+    await Promise.all(
+      Array.from({ length: CONCURRENCY }, async () => {
+        while (next < ready.length) {
+          const i = next++;
+          const file = ready[i];
+          const p = prepared.get(file)!;
+          try {
+            const [a, b] = await Promise.all([
+              fetch(uploads[i].uploadUrl, { method: "PUT", body: p.original, headers: { "Content-Type": p.contentType } }),
+              fetch(uploads[i].thumbnailUploadUrl, { method: "PUT", body: p.thumbnail, headers: { "Content-Type": "image/webp" } }),
+            ]);
+            if (!a.ok || !b.ok) throw new Error("put");
+            sent.push({ file, id: uploads[i].id });
+          } catch {
+            mark(file, "failed");
+          }
         }
-      }
-    }
-    await Promise.all(Array.from({ length: CONCURRENCY }, worker));
-    if (confirmed.length === 0) return { uploaded: 0, lost };
+      })
+    );
+    if (sent.length === 0) return [];
 
     const confirm = await fetch(`/api/g/${slug}/guest-upload/confirm`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uploaderName: name, uploads: confirmed }),
+      body: JSON.stringify({
+        uploaderName: name,
+        items: sent.map(({ file, id }) => {
+          const p = prepared.get(file)!;
+          return { id, originalFilename: p.filename, width: p.width, height: p.height };
+        }),
+      }),
     });
     if (!confirm.ok) {
       const data = await confirm.json().catch(() => ({}));
-      throw new Error(ERRORS[data.error] ?? "No pudimos guardar las fotos. Intenta de nuevo.");
+      throw new UploadError(ERRORS[data.error] ?? "No pudimos guardar las fotos. Intenta de nuevo.");
     }
-    const { count } = (await confirm.json()) as { count: number };
-    return { uploaded: count, lost };
+    const { confirmed } = (await confirm.json()) as { confirmed: string[] };
+    const ok = new Set(confirmed);
+    const done: File[] = [];
+    for (const { file, id } of sent) {
+      if (ok.has(id)) {
+        mark(file, "done");
+        done.push(file);
+      } else {
+        mark(file, "failed");
+      }
+    }
+    return done;
   }
 
   async function upload() {
-    if (files.length === 0 || busy) return;
+    // Reintentar solo lo que no se confirmó: lo ya subido no se repite
+    const pending = items.filter((it) => it.status !== "done").map((it) => it.file);
+    if (pending.length === 0 || busy) return;
     setBusy(true);
-    setDone(0);
-    setFailed(0);
     setMessage(null);
+    setItems((prev) => prev.map((it) => (it.status === "failed" ? { ...it, status: "pending" } : it)));
     try {
       localStorage.setItem(NAME_KEY, name.trim());
     } catch {}
 
-    let uploaded = 0;
+    const confirmed = new Set<File>();
     try {
-      for (let i = 0; i < files.length; i += GUEST_MAX_FILES_PER_REQUEST) {
-        const r = await uploadBatch(files.slice(i, i + GUEST_MAX_FILES_PER_REQUEST));
-        uploaded += r.uploaded;
+      for (let i = 0; i < pending.length; i += GUEST_MAX_FILES_PER_REQUEST) {
+        for (const f of await uploadBatch(pending.slice(i, i + GUEST_MAX_FILES_PER_REQUEST))) confirmed.add(f);
       }
-      setFinished(uploaded);
-      setFiles([]);
-      if (inputRef.current) inputRef.current.value = "";
-      router.refresh();
+      const failed = pending.length - confirmed.size;
+      setFinished({ done: confirmed.size + items.filter((it) => it.status === "done").length, failed });
+      if (failed === 0) {
+        setItems([]);
+        if (inputRef.current) inputRef.current.value = "";
+      }
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "No pudimos subir las fotos.");
-      if (uploaded > 0) router.refresh();
+      setMessage(e instanceof UploadError ? e.message : "No pudimos subir las fotos. Intenta de nuevo.");
     } finally {
       setBusy(false);
+      if (confirmed.size > 0) router.refresh();
     }
   }
 
-  const total = files.length;
-  const progress = total ? Math.round(((done + failed) / total) * 100) : 0;
+  const total = items.length;
+  const doneCount = items.filter((it) => it.status === "done").length;
+  const failedCount = items.filter((it) => it.status === "failed").length;
+  const progress = total ? Math.round(((doneCount + failedCount) / total) * 100) : 0;
 
   return (
     <>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => {
           reset();
@@ -216,14 +293,17 @@ export function GuestUpload({ slug, closesAt }: { slug: string; closesAt: string
       {open && (
         <div
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="guest-upload-title"
           onClick={(e) => {
             if (e.target === e.currentTarget && !busy) setOpen(false);
           }}
         >
-          <div className="w-full max-w-md rounded-t-2xl bg-background p-6 text-foreground shadow-xl sm:rounded-2xl">
+          <div
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="guest-upload-title"
+            className="w-full max-w-md rounded-t-2xl bg-background p-6 text-foreground shadow-xl sm:rounded-2xl"
+          >
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
                 <h2 id="guest-upload-title" className="guest-upload-title text-xl font-semibold">
@@ -236,19 +316,19 @@ export function GuestUpload({ slug, closesAt }: { slug: string; closesAt: string
               <button
                 type="button"
                 onClick={() => !busy && setOpen(false)}
-                className="text-2xl leading-none text-muted-foreground hover:text-foreground"
+                disabled={busy}
+                className="text-2xl leading-none text-muted-foreground hover:text-foreground disabled:opacity-40"
                 aria-label="Cerrar"
               >
                 ×
               </button>
             </div>
 
-            {finished !== null ? (
-              <div className="py-6 text-center">
+            {finished && finished.failed === 0 ? (
+              <div className="py-6 text-center" role="status">
                 <p className="guest-upload-title text-2xl">¡Gracias!</p>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  {finished === 1 ? "Se subió 1 foto." : `Se subieron ${finished} fotos.`}
-                  {failed > 0 && ` ${failed} no se pudieron subir.`}
+                  {finished.done === 1 ? "Se subió 1 foto." : `Se subieron ${finished.done} fotos.`}
                 </p>
                 <div className="mt-6 flex justify-center gap-3">
                   <button
@@ -272,6 +352,7 @@ export function GuestUpload({ slug, closesAt }: { slug: string; closesAt: string
                 <label className="block text-sm">
                   <span className="text-muted-foreground">Tu nombre (opcional)</span>
                   <input
+                    ref={nameRef}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     maxLength={GUEST_NAME_MAX_LENGTH}
@@ -285,7 +366,7 @@ export function GuestUpload({ slug, closesAt }: { slug: string; closesAt: string
                 <input
                   ref={inputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/*,.heic,.heif"
                   multiple
                   className="hidden"
                   onChange={(e) => pick(e.target.files)}
@@ -303,26 +384,32 @@ export function GuestUpload({ slug, closesAt }: { slug: string; closesAt: string
                       : `${total} fotos elegidas · cambiar`}
                 </button>
 
-                {busy && (
-                  <div>
+                {(busy || doneCount + failedCount > 0) && total > 0 && (
+                  <div aria-live="polite">
                     <div className="h-2 overflow-hidden rounded-full bg-muted">
                       <div className="h-full bg-accent transition-all" style={{ width: `${progress}%` }} />
                     </div>
                     <p className="mt-2 text-center text-xs text-muted-foreground">
-                      Subiendo {done} de {total}…
+                      {busy ? `Subiendo ${doneCount} de ${total}…` : `${doneCount} de ${total} subidas`}
+                      {failedCount > 0 &&
+                        ` · ${failedCount} no se ${failedCount === 1 ? "pudo" : "pudieron"} subir (formato no compatible o mala señal)`}
                     </p>
                   </div>
                 )}
 
-                {message && <p className="text-center text-sm text-red-600">{message}</p>}
+                {message && (
+                  <p className="text-center text-sm text-red-600" role="alert">
+                    {message}
+                  </p>
+                )}
 
                 <button
                   type="button"
-                  disabled={busy || total === 0}
+                  disabled={busy || total === 0 || doneCount === total}
                   onClick={upload}
                   className="w-full rounded-full bg-accent px-4 py-3 text-sm font-medium text-accent-foreground transition hover:opacity-90 disabled:opacity-50"
                 >
-                  {busy ? "Subiendo…" : "Subir fotos"}
+                  {busy ? "Subiendo…" : failedCount > 0 || message ? "Reintentar las que faltan" : "Subir fotos"}
                 </button>
                 {closesAt && (
                   <p className="text-center text-xs text-muted-foreground">

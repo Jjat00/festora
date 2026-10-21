@@ -4,10 +4,11 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { generateUniqueSlug } from "@/lib/slug";
 import { hashPin } from "@/lib/pin";
-import { deleteObjects } from "@/lib/r2";
+import { deleteObjects, getGuestStagingKeys } from "@/lib/r2";
 import type { CreateProjectInput, UpdateProjectInput } from "@/lib/types";
 import type { Prisma } from "@prisma/client";
 import { toGalleryTheme } from "@/lib/themes";
+import { GUEST_MAX_PROJECT_STORAGE_GB } from "@/lib/constants";
 import { revalidatePath } from "next/cache";
 
 async function getAuthenticatedUserId(): Promise<string> {
@@ -65,7 +66,16 @@ export async function updateProject(
   }
   if (input.storageLimitGb !== undefined) {
     const gb = input.storageLimitGb;
-    data.storageLimit = gb && gb > 0 ? BigInt(Math.round(gb * 1024 ** 3)) : null;
+    if (gb === null) {
+      data.storageLimit = null;
+    } else if (typeof gb === "number" && Number.isFinite(gb) && gb > 0 && gb <= GUEST_MAX_PROJECT_STORAGE_GB) {
+      data.storageLimit = BigInt(Math.round(gb * 1024 ** 3));
+    } else {
+      throw new Error(`El tope debe ser un número entre 0,1 y ${GUEST_MAX_PROJECT_STORAGE_GB} GB`);
+    }
+  }
+  if (input.guestUploads !== undefined && typeof input.guestUploads !== "boolean") {
+    throw new Error("Valor inválido para el álbum colaborativo");
   }
 
   const project = await prisma.project.update({
@@ -87,9 +97,18 @@ export async function deleteProject(projectId: string) {
     select: { objectKey: true, thumbnailKey: true },
   });
 
-  const keysToDelete = photos.flatMap((p) =>
-    [p.objectKey, p.thumbnailKey].filter(Boolean) as string[]
-  );
+  const staging = await prisma.guestUpload.findMany({
+    where: { projectId, project: { userId }, stagingCleared: false },
+    select: { id: true, extension: true },
+  });
+
+  const keysToDelete = [
+    ...photos.flatMap((p) => [p.objectKey, p.thumbnailKey].filter(Boolean) as string[]),
+    ...staging.flatMap((s) => {
+      const k = getGuestStagingKeys(userId, projectId, s.id, s.extension);
+      return [k.original, k.thumbnail];
+    }),
+  ];
 
   await prisma.project.delete({
     where: { id: projectId, userId },

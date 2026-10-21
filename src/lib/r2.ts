@@ -5,6 +5,7 @@ import {
   DeleteObjectCommand,
   DeleteObjectsCommand,
   HeadObjectCommand,
+  CopyObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -49,6 +50,50 @@ export async function getSignedReadUrl(
   return getSignedUrl(r2Client, command, { expiresIn });
 }
 
+/**
+ * PUT prefirmado que solo acepta exactamente `contentLength` bytes: el tamaño
+ * entra en la firma, así que el navegador no puede subir más de lo reservado.
+ */
+export async function getPresignedSizedUploadUrl(
+  objectKey: string,
+  contentType: string,
+  contentLength: number,
+  expiresIn: number
+): Promise<string> {
+  const command = new PutObjectCommand({
+    Bucket: R2_BUCKET_NAME,
+    Key: objectKey,
+    ContentType: contentType,
+    ContentLength: contentLength,
+  });
+  return getSignedUrl(r2Client, command, {
+    expiresIn,
+    signableHeaders: new Set(["content-length", "content-type"]),
+  });
+}
+
+/** Primeros `length` bytes del objeto (para reconocer el formato real), o null. */
+export async function readObjectPrefix(objectKey: string, length: number): Promise<Uint8Array | null> {
+  try {
+    const res = await r2Client.send(
+      new GetObjectCommand({ Bucket: R2_BUCKET_NAME, Key: objectKey, Range: `bytes=0-${length - 1}` })
+    );
+    return res.Body ? await res.Body.transformToByteArray() : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function copyObject(fromKey: string, toKey: string): Promise<void> {
+  await r2Client.send(
+    new CopyObjectCommand({
+      Bucket: R2_BUCKET_NAME,
+      Key: toKey,
+      CopySource: `${R2_BUCKET_NAME}/${fromKey.split("/").map(encodeURIComponent).join("/")}`,
+    })
+  );
+}
+
 /** Tamaño real del objeto en el bucket, o null si no existe. */
 export async function getObjectSize(objectKey: string): Promise<number | null> {
   try {
@@ -87,6 +132,11 @@ export function getObjectKey(
   ext: string
 ): string {
   return `${userId}/${projectId}/originals/${photoId}.${ext}`;
+}
+
+export function getGuestStagingKeys(userId: string, projectId: string, uploadId: string, ext: string) {
+  const base = `${userId}/${projectId}/guest-staging/${uploadId}`;
+  return { original: `${base}.${ext}`, thumbnail: `${base}.thumb.webp` };
 }
 
 export function getThumbnailKey(

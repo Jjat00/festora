@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { r2Client } from "@/lib/r2";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
+import { contentDispositionAttachment } from "@/lib/safe-filename";
 
 export async function GET(
   _req: NextRequest,
@@ -27,7 +28,7 @@ export async function GET(
   return new NextResponse(response.Body as ReadableStream, {
     headers: {
       "Content-Type": response.ContentType || "image/jpeg",
-      "Content-Disposition": `attachment; filename="${photo.originalFilename}"`,
+      "Content-Disposition": contentDispositionAttachment(photo.originalFilename),
     },
   });
 }

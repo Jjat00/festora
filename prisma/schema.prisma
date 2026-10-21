@@ -83,6 +83,7 @@ model Project {
   photos            Photo[]
   selections        Selection[]
   albumSuggestions  AlbumSuggestion[]
+  guestUploadReservations GuestUpload[]
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
@@ -194,6 +195,27 @@ enum ProjectType {
   CORPORATE
   PRODUCT
   OTHER
+}
+
+// Reserva de una subida de invitado. El presign la crea con el tamaño que se
+// firma en el PUT; el archivo cae en guest-staging/ y solo pasa a originals/
+// cuando confirm verifica tamaño y contenido. Mientras no se confirme ni se
+// limpie, su tamaño cuenta contra la cuota.
+model GuestUpload {
+  id             String    @id // UUID: también nombra los archivos
+  projectId      String
+  extension      String
+  contentType    String
+  size           Int
+  thumbnailSize  Int
+  createdAt      DateTime  @default(now())
+  expiresAt      DateTime
+  confirmedAt    DateTime?
+  stagingCleared Boolean   @default(false)
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([expiresAt, stagingCleared])
 }
 
 enum PhotoSource {

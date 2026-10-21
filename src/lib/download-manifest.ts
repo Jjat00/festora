@@ -1,4 +1,5 @@
 import { getSignedReadUrl } from "@/lib/r2";
+import { safeFilename } from "@/lib/safe-filename";
 
 /**
  * Vigencia de las URLs prefirmadas del manifiesto. Un proyecto de varios GB
@@ -55,7 +56,7 @@ export async function buildDownloadManifest(
   const files = await Promise.all(
     photos.map(async (photo) => ({
       id: photo.id,
-      name: uniqueName(photo.originalFilename),
+      name: uniqueName(safeFilename(photo.originalFilename)),
       size: photo.size,
       url: await getSignedReadUrl(photo.objectKey, MANIFEST_URL_TTL_SECONDS),
     }))

@@ -8,6 +8,12 @@ import type { Project } from "@prisma/client";
 import type { ProjectType } from "@prisma/client";
 import { GALLERY_THEMES } from "@/lib/themes";
 
+// El cierre del álbum se guarda como fin del día en Colombia; el campo debe
+// mostrar ese mismo día, no el día UTC (que ya es el siguiente a las 19:00).
+function bogotaDate(d: Date | null): string {
+  return d ? new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(d) : "";
+}
+
 const PROJECT_TYPES: { value: ProjectType; label: string }[] = [
   { value: "WEDDING", label: "Boda" },
   { value: "QUINCEANERA", label: "XV Años" },
@@ -27,6 +33,7 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
   const [coverPhrase, setCoverPhrase] = useState(project.coverPhrase || "");
   const [generating, setGenerating] = useState(false);
   const [guestUploads, setGuestUploads] = useState(project.guestUploads);
+  const [removePin, setRemovePin] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -42,7 +49,7 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
         type: formData.get("type") as ProjectType,
         date: new Date(formData.get("date") as string),
         // Vacío deja el PIN como está; quitarlo es una decisión explícita
-        pin: formData.get("removePin")
+        pin: removePin
           ? null
           : (formData.get("pin") as string) || undefined,
         coverPhrase: (formData.get("coverPhrase") as string) || null,
@@ -190,11 +197,13 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
             type="text"
             placeholder="1234"
             maxLength={8}
-            className={inputClass}
+            disabled={removePin}
+            className={`${inputClass} disabled:opacity-50`}
           />
           {project.pin && (
             <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-              <input type="checkbox" name="removePin" /> Quitar el PIN (la galería queda abierta)
+              <input type="checkbox" checked={removePin} onChange={(e) => setRemovePin(e.target.checked)} /> Quitar
+              el PIN (la galería queda abierta)
             </label>
           )}
         </div>
@@ -288,7 +297,8 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
           </span>
         </label>
 
-        {guestUploads && (
+        {/* Siempre montados: desactivar el álbum no debe borrar su plazo ni su tope */}
+        <div className={guestUploads ? "" : "hidden"}>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="guestUploadsUntil" className={labelClass}>
@@ -298,11 +308,7 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
                 id="guestUploadsUntil"
                 name="guestUploadsUntil"
                 type="date"
-                defaultValue={
-                  project.guestUploadsUntil
-                    ? project.guestUploadsUntil.toISOString().split("T")[0]
-                    : ""
-                }
+                defaultValue={bogotaDate(project.guestUploadsUntil)}
                 className={inputClass}
               />
             </div>
@@ -324,7 +330,7 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
               />
             </div>
           </div>
-        )}
+        </div>
       </fieldset>
 
       <button

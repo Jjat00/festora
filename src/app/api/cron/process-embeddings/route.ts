@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { processEmbeddingBatch } from "@/lib/actions/embedding-actions";
+import { cleanupExpiredGuestUploads } from "@/lib/guest-upload";
 
 /**
  * Cron job que procesa fotos pendientes de embeddings.
@@ -13,7 +14,12 @@ export async function GET(request: Request) {
   }
 
   try {
-    const result = await processEmbeddingBatch();
+    // De paso barre las subidas de invitados vencidas, para que su staging no se quede ocupando el bucket
+    const guestStagingCleared = await cleanupExpiredGuestUploads().catch((err) => {
+      console.error("[guest-staging] Error:", err);
+      return 0;
+    });
+    const result = { ...(await processEmbeddingBatch()), guestStagingCleared };
     return NextResponse.json(result);
   } catch (err) {
     console.error("[embedding-cron] Error:", err);

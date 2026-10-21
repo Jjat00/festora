@@ -1,105 +1,198 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getObjectSize, deleteObjects } from "@/lib/r2";
-import { GUEST_MAX_FILES_PER_REQUEST, GUEST_MAX_FILE_SIZE, GUEST_NAME_MAX_LENGTH } from "@/lib/constants";
-import { getGuestUploadProject, checkGuestStorage, checkGuestRate } from "@/lib/guest-upload";
+import {
+  copyObject,
+  deleteObjects,
+  getGuestStagingKeys,
+  getObjectKey,
+  getObjectSize,
+  getThumbnailKey,
+  readObjectPrefix,
+} from "@/lib/r2";
+import { GUEST_MAX_FILES_PER_REQUEST, GUEST_NAME_MAX_LENGTH } from "@/lib/constants";
+import {
+  cleanDimension,
+  getGuestUploadProject,
+  lockOwner,
+  matchesImageType,
+  ownerUsage,
+  projectUsage,
+} from "@/lib/guest-upload";
+import { safeFilename } from "@/lib/safe-filename";
 
-type GuestUpload = {
-  objectKey: string;
-  thumbnailKey: string;
-  originalFilename: string;
-  width?: number;
-  height?: number;
-};
+type Item = { id: string; originalFilename?: unknown; width?: unknown; height?: unknown };
 
-const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+class QuotaExceeded extends Error {}
 
 /**
- * Registra en la base las fotos que un invitado ya subió a R2. A diferencia de
- * confirmUpload (dueño autenticado), aquí no se confía en nada del navegador:
- * las claves deben ser de este proyecto y el tamaño se lee del bucket.
+ * Registra fotos de invitados a partir de sus reservas. Solo se aceptan IDs de
+ * reserva de este proyecto, vigentes y sin confirmar; el tamaño y el formato se
+ * comprueban en el bucket; y lo único que se borra es staging de esa reserva.
  */
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ slug: string }> }
-) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const result = await getGuestUploadProject(slug);
-  if ("error" in result) return NextResponse.json({ error: result.error }, { status: result.status });
-  const { project } = result;
+  const gate = await getGuestUploadProject(slug);
+  if ("error" in gate) return NextResponse.json({ error: gate.error }, { status: gate.status });
+  const { project } = gate;
 
-  const body = (await req.json().catch(() => null)) as {
-    uploaderName?: string;
-    uploads?: GuestUpload[];
-  } | null;
-  const uploads = body?.uploads;
-  if (!Array.isArray(uploads) || uploads.length === 0 || uploads.length > GUEST_MAX_FILES_PER_REQUEST) {
-    return NextResponse.json({ error: "Invalid uploads" }, { status: 400 });
+  const body = (await req.json().catch(() => null)) as { uploaderName?: unknown; items?: unknown } | null;
+  const rawItems = body?.items;
+  if (!Array.isArray(rawItems) || rawItems.length === 0 || rawItems.length > GUEST_MAX_FILES_PER_REQUEST) {
+    return NextResponse.json({ error: "Invalid items" }, { status: 400 });
+  }
+  const items = new Map<string, Item>();
+  for (const it of rawItems) {
+    if (it && typeof it === "object" && typeof (it as Item).id === "string" && !items.has((it as Item).id)) {
+      items.set((it as Item).id, it as Item);
+    }
   }
 
-  const prefix = `${project.userId}/${project.id}`;
-  const originalRe = new RegExp(`^${prefix}/originals/(${UUID})\\.(jpg|png|webp|heic|heif)$`);
-
-  const valid: (GuestUpload & { size: number })[] = [];
-  for (const u of uploads) {
-    const match = typeof u?.objectKey === "string" ? u.objectKey.match(originalRe) : null;
-    if (!match || u.thumbnailKey !== `${prefix}/thumbnails/${match[1]}.webp`) {
-      return NextResponse.json({ error: "Invalid key" }, { status: 400 });
-    }
-    const size = await getObjectSize(u.objectKey);
-    if (size === null) continue; // la subida a R2 falló: no hay nada que registrar
-    if (size > GUEST_MAX_FILE_SIZE) {
-      await deleteObjects([u.objectKey, u.thumbnailKey]);
-      continue;
-    }
-    valid.push({ ...u, size });
-  }
-  if (valid.length === 0) return NextResponse.json({ error: "Nothing uploaded" }, { status: 400 });
-
-  // Un confirm repetido (reintento del navegador) no debe duplicar fotos
-  const existing = await prisma.photo.findMany({
-    where: { projectId: project.id, objectKey: { in: valid.map((v) => v.objectKey) } },
-    select: { objectKey: true },
+  const reservations = await prisma.guestUpload.findMany({
+    where: {
+      id: { in: [...items.keys()] },
+      projectId: project.id,
+      confirmedAt: null,
+      stagingCleared: false,
+      expiresAt: { gt: new Date() },
+    },
   });
-  const seen = new Set(existing.map((e) => e.objectKey));
-  const fresh = valid.filter((v) => !seen.has(v.objectKey));
-  if (fresh.length === 0) return NextResponse.json({ count: 0 });
 
-  const rate = await checkGuestRate(project.id, fresh.length);
-  if (rate) return NextResponse.json({ error: rate.error }, { status: rate.status });
+  // Verificación en el bucket: tamaño exacto al reservado y formato real
+  const verified: typeof reservations = [];
+  const rejected: string[] = [];
+  await Promise.all(
+    reservations.map(async (r) => {
+      const keys = getGuestStagingKeys(project.userId, project.id, r.id, r.extension);
+      const [size, thumbSize, head, thumbHead] = await Promise.all([
+        getObjectSize(keys.original),
+        getObjectSize(keys.thumbnail),
+        readObjectPrefix(keys.original, 16),
+        readObjectPrefix(keys.thumbnail, 16),
+      ]);
+      const ok =
+        size === r.size &&
+        thumbSize !== null && thumbSize > 0 && thumbSize <= r.thumbnailSize &&
+        matchesImageType(head, r.contentType) &&
+        matchesImageType(thumbHead, "image/webp");
+      if (ok) verified.push(r);
+      else rejected.push(r.id);
+    })
+  );
 
-  const storage = await checkGuestStorage(project, fresh.reduce((s, v) => s + v.size, 0));
-  if (storage) {
-    await deleteObjects(fresh.flatMap((v) => [v.objectKey, v.thumbnailKey]));
-    return NextResponse.json({ error: storage.error }, { status: storage.status });
+  if (rejected.length > 0) {
+    const bad = reservations.filter((r) => rejected.includes(r.id));
+    await deleteObjects(bad.flatMap((r) => {
+      const k = getGuestStagingKeys(project.userId, project.id, r.id, r.extension);
+      return [k.original, k.thumbnail];
+    }));
+    await prisma.guestUpload.updateMany({ where: { id: { in: rejected } }, data: { stagingCleared: true } });
   }
+  if (verified.length === 0) return NextResponse.json({ error: "Nothing uploaded" }, { status: 400 });
+
+  // Copia a la ubicación definitiva: la URL de subida apunta a staging, así que
+  // un PUT repetido ya no puede alterar la foto registrada.
+  const finalKeys = new Map(
+    verified.map((r) => [
+      r.id,
+      { original: getObjectKey(project.userId, project.id, r.id, r.extension), thumbnail: getThumbnailKey(project.userId, project.id, r.id) },
+    ])
+  );
+  await Promise.all(
+    verified.map(async (r) => {
+      const s = getGuestStagingKeys(project.userId, project.id, r.id, r.extension);
+      const f = finalKeys.get(r.id)!;
+      await Promise.all([copyObject(s.original, f.original), copyObject(s.thumbnail, f.thumbnail)]);
+    })
+  );
 
   const uploaderName =
     typeof body?.uploaderName === "string"
-      ? body.uploaderName.replace(/\s+/g, " ").trim().slice(0, GUEST_NAME_MAX_LENGTH) || null
+      ? body.uploaderName.replace(/[\u0000-\u001f\u007f]/g, "").replace(/\s+/g, " ").trim().slice(0, GUEST_NAME_MAX_LENGTH) || null
       : null;
 
-  const last = await prisma.photo.findFirst({
-    where: { projectId: project.id },
-    orderBy: { order: "desc" },
-    select: { order: true },
-  });
-  const startOrder = (last?.order ?? -1) + 1;
+  let claimedIds: string[] = [];
+  try {
+    claimedIds = await prisma.$transaction(async (tx) => {
+      await lockOwner(tx, project.userId);
 
-  await prisma.photo.createMany({
-    data: fresh.map((v, i) => ({
-      projectId: project.id,
-      objectKey: v.objectKey,
-      thumbnailKey: v.thumbnailKey,
-      originalFilename: String(v.originalFilename || "foto").slice(0, 200),
-      order: startOrder + i,
-      width: Number.isInteger(v.width) ? v.width : null,
-      height: Number.isInteger(v.height) ? v.height : null,
-      size: v.size,
-      source: "GUEST" as const,
-      uploaderName,
-    })),
-  });
+      // Reclamo atómico: si otra petición ya confirmó una reserva, aquí no vuelve
+      const claimed = await tx.guestUpload.updateManyAndReturn({
+        where: { id: { in: verified.map((r) => r.id) }, confirmedAt: null, stagingCleared: false },
+        data: { confirmedAt: new Date() },
+        select: { id: true, size: true },
+      });
+      if (claimed.length === 0) return [];
 
-  return NextResponse.json({ count: fresh.length }, { headers: { "Cache-Control": "no-store" } });
+      // Las reservas ya contaban como pendientes; confirmadas pasan a contar como fotos
+      const adding = claimed.reduce((s, c) => s + c.size, 0);
+      if ((await ownerUsage(tx, project.userId)) + adding > project.userStorageLimit) throw new QuotaExceeded();
+      if (project.storageLimit !== null && (await projectUsage(tx, project.id)) + adding > project.storageLimit) {
+        throw new QuotaExceeded();
+      }
+
+      const last = await tx.photo.findFirst({
+        where: { projectId: project.id },
+        orderBy: { order: "desc" },
+        select: { order: true },
+      });
+      const startOrder = (last?.order ?? -1) + 1;
+
+      const byId = new Map(verified.map((r) => [r.id, r]));
+      await tx.photo.createMany({
+        data: claimed.map((c, i) => {
+          const r = byId.get(c.id)!;
+          const it = items.get(c.id)!;
+          const keys = finalKeys.get(c.id)!;
+          return {
+            projectId: project.id,
+            objectKey: keys.original,
+            thumbnailKey: keys.thumbnail,
+            originalFilename: safeFilename(String(it.originalFilename ?? ""), `foto.${r.extension}`),
+            order: startOrder + i,
+            width: cleanDimension(it.width),
+            height: cleanDimension(it.height),
+            size: r.size,
+            source: "GUEST" as const,
+            uploaderName,
+          };
+        }),
+      });
+      return claimed.map((c) => c.id);
+    });
+  } catch (e) {
+    if (e instanceof QuotaExceeded) {
+      // La transacción se revirtió. Solo se borran las copias que nadie registró:
+      // una petición simultánea pudo confirmar alguna de estas mismas reservas.
+      const taken = await prisma.guestUpload.findMany({
+        where: { id: { in: verified.map((r) => r.id) }, confirmedAt: { not: null } },
+        select: { id: true },
+      });
+      const takenIds = new Set(taken.map((t) => t.id));
+      await deleteObjects(
+        verified
+          .filter((r) => !takenIds.has(r.id))
+          .flatMap((r) => [finalKeys.get(r.id)!.original, finalKeys.get(r.id)!.thumbnail])
+      );
+      return NextResponse.json({ error: "STORAGE_LIMIT_EXCEEDED" }, { status: 403 });
+    }
+    throw e;
+  }
+
+  // Staging ya no hace falta; el barrido de vencidas lo vuelve a borrar por si
+  // alguien reutiliza la URL antes de que venza.
+  if (claimedIds.length > 0) {
+    await deleteObjects(
+      verified
+        .filter((r) => claimedIds.includes(r.id))
+        .flatMap((r) => {
+          const k = getGuestStagingKeys(project.userId, project.id, r.id, r.extension);
+          return [k.original, k.thumbnail];
+        })
+    );
+  }
+
+  return NextResponse.json(
+    { count: claimedIds.length, confirmed: claimedIds, rejected },
+    { headers: { "Cache-Control": "no-store" } }
+  );
 }

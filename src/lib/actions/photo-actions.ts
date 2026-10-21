@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { dispatchPhotoAnalysis, generateAlbumSuggestions } from "@/lib/actions/ai-actions";
 import { dispatchEmbeddingGeneration } from "@/lib/actions/embedding-actions";
+import { pendingGuestBytes } from "@/lib/guest-upload";
 
 async function getAuthenticatedUserId(): Promise<string> {
   const session = await auth();
@@ -42,7 +43,9 @@ export async function confirmUpload(
   ]);
 
   const storageLimit = Number(user?.storageLimit ?? DEFAULT_STORAGE_LIMIT);
-  const currentUsage = storageAggregate._sum.size ?? 0;
+  // Las reservas de invitados en curso también ocupan cuota (0 si no hay álbum colaborativo)
+  const currentUsage =
+    (storageAggregate._sum.size ?? 0) + (await pendingGuestBytes(prisma, { project: { userId } }));
   const uploadSize = uploads.reduce((sum, u) => sum + u.size, 0);
 
   if (currentUsage + uploadSize > storageLimit) {

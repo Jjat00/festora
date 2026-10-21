@@ -11,6 +11,7 @@ import {
   MAX_FILE_SIZE,
   DEFAULT_STORAGE_LIMIT,
 } from "@/lib/constants";
+import { pendingGuestBytes } from "@/lib/guest-upload";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -50,7 +51,10 @@ export async function POST(req: NextRequest) {
   ]);
 
   const storageLimit = Number(user?.storageLimit ?? DEFAULT_STORAGE_LIMIT);
-  const currentUsage = storageAggregate._sum.size ?? 0;
+  // Las reservas de invitados en curso también ocupan cuota (0 si no hay álbum colaborativo)
+  const currentUsage =
+    (storageAggregate._sum.size ?? 0) +
+    (await pendingGuestBytes(prisma, { project: { userId: session.user.id } }));
   const uploadSize = files.reduce((sum, f) => sum + (f.size ?? 0), 0);
 
   if (currentUsage + uploadSize > storageLimit) {
