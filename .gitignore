@@ -42,3 +42,5 @@ yarn-error.log*
 next-env.d.ts
 .mcp.json
 .agents
+# Informes de revisión de Codex: locales, no se versionan
+.revisiones/
