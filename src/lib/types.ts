@@ -22,6 +22,10 @@ export interface UpdateProjectInput {
   coverPhrase?: string | null;
   status?: ProjectStatus;
   selectionDeadline?: Date | null;
+  guestUploads?: boolean;
+  guestUploadsUntil?: Date | null;
+  storageLimitGb?: number | null;
+  theme?: string;
 }
 
 export interface UploadFileInfo {

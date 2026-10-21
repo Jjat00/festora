@@ -6,6 +6,7 @@ import { updateProject } from "@/lib/actions/project-actions";
 import { generateCoverPhrase } from "@/lib/actions/ai-actions";
 import type { Project } from "@prisma/client";
 import type { ProjectType } from "@prisma/client";
+import { GALLERY_THEMES } from "@/lib/themes";
 
 const PROJECT_TYPES: { value: ProjectType; label: string }[] = [
   { value: "WEDDING", label: "Boda" },
@@ -25,6 +26,7 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
   const [copied, setCopied] = useState(false);
   const [coverPhrase, setCoverPhrase] = useState(project.coverPhrase || "");
   const [generating, setGenerating] = useState(false);
+  const [guestUploads, setGuestUploads] = useState(project.guestUploads);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -39,10 +41,21 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
         clientName: formData.get("clientName") as string,
         type: formData.get("type") as ProjectType,
         date: new Date(formData.get("date") as string),
-        pin: (formData.get("pin") as string) || null,
+        // Vacío deja el PIN como está; quitarlo es una decisión explícita
+        pin: formData.get("removePin")
+          ? null
+          : (formData.get("pin") as string) || undefined,
         coverPhrase: (formData.get("coverPhrase") as string) || null,
         selectionDeadline: formData.get("selectionDeadline")
           ? new Date(formData.get("selectionDeadline") as string)
+          : null,
+        theme: formData.get("theme") as string,
+        guestUploads,
+        guestUploadsUntil: formData.get("guestUploadsUntil")
+          ? new Date(`${formData.get("guestUploadsUntil")}T23:59:59-05:00`)
+          : null,
+        storageLimitGb: formData.get("storageLimitGb")
+          ? Number(formData.get("storageLimitGb"))
           : null,
       });
       setMessage("Guardado");
@@ -167,7 +180,9 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
         <div>
           <label htmlFor="pin" className={labelClass}>
             PIN de acceso{" "}
-            <span className="text-muted-foreground">(dejar vacío para quitar)</span>
+            <span className="text-muted-foreground">
+              {project.pin ? "(activo · escribe uno nuevo para cambiarlo)" : "(sin PIN)"}
+            </span>
           </label>
           <input
             id="pin"
@@ -177,6 +192,11 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
             maxLength={8}
             className={inputClass}
           />
+          {project.pin && (
+            <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+              <input type="checkbox" name="removePin" /> Quitar el PIN (la galería queda abierta)
+            </label>
+          )}
         </div>
         <div>
           <label htmlFor="selectionDeadline" className={labelClass}>
@@ -235,6 +255,77 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
           Escribe tu idea y dale a &quot;Generar con IA&quot; para potenciarla. También puedes generar una desde cero.
         </p>
       </div>
+
+      <fieldset className="space-y-4 rounded-xl border border-border p-4">
+        <legend className="px-1 text-sm font-semibold">Galería del cliente</legend>
+
+        <div>
+          <label htmlFor="theme" className={labelClass}>
+            Estilo
+          </label>
+          <select id="theme" name="theme" defaultValue={project.theme} className={inputClass}>
+            {GALLERY_THEMES.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <label className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            checked={guestUploads}
+            onChange={(e) => setGuestUploads(e.target.checked)}
+            className="mt-1"
+          />
+          <span>
+            <span className="block text-sm font-medium">Álbum colaborativo</span>
+            <span className="block text-xs text-muted-foreground">
+              Quien tenga el enlace{project.pin ? " y el PIN" : ""} puede subir sus fotos desde el
+              celular, sin cuenta. Úsalo con PIN.
+            </span>
+          </span>
+        </label>
+
+        {guestUploads && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="guestUploadsUntil" className={labelClass}>
+                Recibir fotos hasta <span className="text-muted-foreground">(opcional)</span>
+              </label>
+              <input
+                id="guestUploadsUntil"
+                name="guestUploadsUntil"
+                type="date"
+                defaultValue={
+                  project.guestUploadsUntil
+                    ? project.guestUploadsUntil.toISOString().split("T")[0]
+                    : ""
+                }
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label htmlFor="storageLimitGb" className={labelClass}>
+                Tope del proyecto (GB) <span className="text-muted-foreground">(opcional)</span>
+              </label>
+              <input
+                id="storageLimitGb"
+                name="storageLimitGb"
+                type="number"
+                min="0.1"
+                step="0.1"
+                placeholder="Sin tope propio"
+                defaultValue={
+                  project.storageLimit ? Number(project.storageLimit) / 1024 ** 3 : ""
+                }
+                className={inputClass}
+              />
+            </div>
+          </div>
+        )}
+      </fieldset>
 
       <button
         type="submit"

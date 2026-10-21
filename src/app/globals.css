@@ -59,3 +59,43 @@ body {
   background: var(--foreground);
   color: var(--background);
 }
+
+/* ---------- Temas de galería ---------- */
+/* Redefinen los mismos tokens, así la galería entera (tarjetas, lightbox,
+   botones) cambia sin tocar sus componentes. Ganan al modo oscuro a propósito:
+   un tema de evento se ve igual en todos los teléfonos. */
+[data-theme="salvia"] {
+  --background: #faf8ef;
+  --foreground: #3f453b;
+  --muted: #efeee2;
+  --muted-foreground: #6d7366;
+  --border: #dcdccb;
+  --accent: #7a8d72;
+  --accent-foreground: #ffffff;
+  --ring: #7a8d72;
+  color-scheme: light;
+  background: var(--background);
+  color: var(--foreground);
+}
+[data-theme="salvia"] .salvia-script { font-family: var(--font-script), cursive; color: #5f7258; font-weight: 400; }
+[data-theme="salvia"] .salvia-serif { font-family: var(--font-serif-theme), serif; color: #3f453b; }
+[data-theme="salvia"] .salvia-kicker {
+  font-family: var(--font-serif-theme), serif; font-size: 0.85rem; letter-spacing: 0.3em;
+  text-transform: uppercase; color: #7a8d72;
+}
+[data-theme="salvia"] .guest-upload-title { font-family: var(--font-script), cursive; color: #5f7258; font-weight: 400; font-size: 2.2rem; }
+.salvia-hero {
+  background:
+    radial-gradient(ellipse at 30% 30%, rgba(160, 183, 190, 0.18), transparent 55%),
+    radial-gradient(ellipse at 70% 80%, rgba(214, 190, 150, 0.18), transparent 50%);
+}
+.salvia-rosas { position: absolute; width: min(46vw, 320px); pointer-events: none; }
+.salvia-rosas--tl { top: 0; left: 0; }
+.salvia-rosas--br { bottom: 0; right: 0; transform: rotate(180deg); width: min(28vw, 200px); }
+.salvia-arco { position: relative; width: min(78vw, 360px); }
+.salvia-arco > img:first-child {
+  display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: cover; object-position: 50% 30%;
+  border-radius: 999px 999px 18px 18px; outline: 1px solid #c9b48a; outline-offset: 8px;
+  box-shadow: 0 18px 40px -18px rgba(63, 69, 59, 0.45);
+}
+.salvia-arco-ramo { position: absolute; width: 70%; left: -22%; bottom: -34px; transform: rotate(-12deg); pointer-events: none; }

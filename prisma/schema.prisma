@@ -72,6 +72,13 @@ model Project {
   coverPhrase       String?
   status            ProjectStatus @default(ACTIVE)
   selectionDeadline DateTime?
+  // Álbum colaborativo: quien tenga el enlace (y el PIN, si lo hay) puede subir fotos
+  guestUploads      Boolean       @default(false)
+  guestUploadsUntil DateTime?
+  // Tope propio del proyecto en bytes; null = solo cuenta el límite del usuario
+  storageLimit      BigInt?
+  // Estilo de la galería pública: "default" | "salvia"
+  theme             String        @default("default")
   user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   photos            Photo[]
   selections        Selection[]
@@ -106,6 +113,8 @@ model Photo {
   width            Int?
   height           Int?
   size             Int
+  source           PhotoSource @default(OWNER)
+  uploaderName     String?
   project          Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
   selection        Selection?
   createdAt        DateTime   @default(now())
@@ -185,6 +194,11 @@ enum ProjectType {
   CORPORATE
   PRODUCT
   OTHER
+}
+
+enum PhotoSource {
+  OWNER
+  GUEST
 }
 
 enum ProjectStatus {

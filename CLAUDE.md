@@ -19,7 +19,7 @@ There is no test suite configured.
 Festora is a photographer gallery SaaS. Photographers create projects, upload photos to Cloudflare R2, and share a public gallery link with clients. Clients can browse photos and mark selections. Two distinct user experiences:
 
 - **Photographer side** (`(dashboard)/` route group): Authenticated, full CRUD via Server Actions
-- **Client side** (`/g/[slug]`): Public, read-only, optional PIN protection
+- **Client side** (`/g/[slug]`): Public, optional PIN protection. Read-only unless the project turns on the collaborative album, in which case anyone past the PIN can upload
 
 ### Key Design Decisions
 
@@ -36,6 +36,10 @@ Festora is a photographer gallery SaaS. Photographers create projects, upload ph
 **SEO/GEO**: `src/lib/seo.ts` is the single source for canonical URLs, hreflang and JSON-LD builders; `src/lib/marketing-schema.ts` composes the per-page `@graph`. Every public page ships `Organization` + its own type (`SoftwareApplication`, `HowTo`, `FAQPage`, `BreadcrumbList`). `/robots.txt` and `/sitemap.xml` are generated (`src/app/robots.ts`, `src/app/sitemap.ts`), and `/llms.txt` and `/pricing.md` are route handlers built from the same dictionaries so they cannot contradict the pages. Only claims backed by shipped features go in them.
 
 **Canonical host**: the canonical origin is `NEXT_PUBLIC_APP_URL` (`https://festora.studio`). `src/proxy.ts` sets `X-Robots-Tag: noindex` on any other host so `festora-gamma.vercel.app` and preview deploys cannot compete as duplicate content. The proxy also writes `x-pathname`, which the root layout reads to set `<html lang>` — that is why every page renders dynamically.
+
+**Collaborative album (guest uploads)**: `Project.guestUploads` (+ optional `guestUploadsUntil` and per-project `storageLimit`) lets visitors upload from the public gallery without an account. `/api/g/[slug]/guest-upload/presign` and `/confirm` share the gate in `src/lib/guest-upload.ts` (album open, in time, PIN cookie). Confirm trusts nothing from the browser: keys must match `{ownerId}/{projectId}/originals/{uuid}` and the size is read from R2 with a HEAD. Photos get `source: GUEST` and an optional `uploaderName`; they count against the owner's quota and the project cap, and a per-project hourly limit (`GUEST_HOURLY_LIMIT`) brakes abuse. The browser downsizes to 2560 px before uploading (`src/components/gallery/guest-upload.tsx`).
+
+**Gallery themes**: `Project.theme` (`src/lib/themes.ts`) restyles the public gallery and its PIN page by redefining the colour tokens under `[data-theme="..."]` in `globals.css`, so gallery components stay theme-agnostic. `salvia` adds its own hero (`src/components/gallery/themes/`) with assets in `public/themes/salvia/`.
 
 **PIN protection**: PINs are bcrypt-hashed in the DB. On verify, a JWT is issued and stored as an HttpOnly cookie (7-day expiry). Subsequent gallery visits validate the cookie without hitting the DB.
 
@@ -119,6 +123,10 @@ Core models: `User` → `Project` → `Photo` → `Selection` (all cascade on de
 See `.env.example`. Required: `DATABASE_URL`, `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `NEXT_PUBLIC_APP_URL`.
 
 Generate `AUTH_SECRET` with: `npx auth secret`
+
+**Local development never touches production**: `.env` points at the production database. Put local overrides in `.env.local` (git-ignored): `DATABASE_URL` to the Docker Postgres and `R2_ENDPOINT` to a local S3 (e.g. `uvx --from "moto[server]" moto_server -p 4566`); `R2_ENDPOINT` also switches the S3 client to path-style. Prisma CLI does not read `.env.local`, so pass `DATABASE_URL` inline to every `prisma` command.
+
+**Migrations touching `Photo`**: Prisma cannot see the pgvector HNSW index and `migrate dev` will add `DROP INDEX "Photo_embedding_idx"` to any new migration. Delete that line before committing.
 
 ### Conventions
 

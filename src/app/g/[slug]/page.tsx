@@ -5,6 +5,10 @@ import { prisma } from "@/lib/prisma";
 import { verifyPinToken } from "@/lib/pin";
 import { GalleryView } from "@/components/gallery/gallery-view";
 import { GalleryDownload } from "@/components/gallery/gallery-download";
+import { GuestUpload } from "@/components/gallery/guest-upload";
+import { SalviaHero } from "@/components/gallery/themes/salvia-hero";
+import { greatVibes, cormorant } from "@/components/gallery/themes/fonts";
+import { toGalleryTheme } from "@/lib/themes";
 
 export default async function GalleryPage({
   params,
@@ -26,6 +30,9 @@ export default async function GalleryPage({
       selectionDeadline: true,
       coverPhrase: true,
       coverKey: true,
+      guestUploads: true,
+      guestUploadsUntil: true,
+      theme: true,
       user: { select: { name: true } },
       photos: {
         select: {
@@ -38,6 +45,7 @@ export default async function GalleryPage({
           llmCategory: true,
           compositeScore: true,
           selection: { select: { id: true } },
+          source: true,
         },
         orderBy: { order: "asc" },
       },
@@ -61,9 +69,26 @@ export default async function GalleryPage({
     (project.selectionDeadline !== null && project.selectionDeadline < new Date());
 
   const coverPhoto = project.photos.find(p => p.thumbnailKey === project.coverKey) || project.photos[0];
+  const theme = toGalleryTheme(project.theme);
+  const acceptsUploads =
+    project.guestUploads &&
+    (project.guestUploadsUntil === null || project.guestUploadsUntil > new Date());
+  const guestCount = project.photos.filter((p) => p.source === "GUEST").length;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div
+      data-theme={theme === "default" ? undefined : theme}
+      className={`min-h-screen bg-background ${theme === "default" ? "" : `${greatVibes.variable} ${cormorant.variable}`}`}
+    >
+      {theme === "salvia" ? (
+        <SalviaHero
+          title={project.name}
+          subtitle={project.clientName && project.clientName !== project.name ? project.clientName : null}
+          phrase={project.coverPhrase}
+          coverPhotoId={coverPhoto?.id ?? null}
+        />
+      ) : (
+      <>
       {/* Hero Section */}
       <div className="relative flex h-[60vh] min-h-[400px] w-full flex-col items-center justify-center overflow-hidden">
         {coverPhoto ? (
@@ -100,12 +125,15 @@ export default async function GalleryPage({
         {/* Decorative gradient overlay at bottom (sutil en claro, completo en oscuro) */}
         <div className="absolute bottom-0 left-0 right-0 z-10 h-32 bg-linear-to-t from-background to-transparent opacity-50 dark:opacity-100" />
       </div>
+      </>
+      )}
 
       <div className="mx-auto max-w-7xl px-4 py-8">
         <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <p className="text-sm text-muted-foreground">
               {project.photos.length} foto{project.photos.length !== 1 && "s"}
+              {guestCount > 0 && ` · ${guestCount} de invitados`}
             </p>
             <p className="text-sm font-medium">
               {project._count.selections} favorita
@@ -113,6 +141,10 @@ export default async function GalleryPage({
               {project._count.selections !== 1 && "s"}
             </p>
           </div>
+          <div className="flex flex-wrap items-center gap-3">
+          {acceptsUploads && (
+            <GuestUpload slug={slug} closesAt={project.guestUploadsUntil?.toISOString() ?? null} />
+          )}
           {project.photos.length > 0 && (
             <GalleryDownload
               slug={slug}
@@ -121,7 +153,15 @@ export default async function GalleryPage({
               favoritesCount={project._count.selections}
             />
           )}
+          </div>
         </div>
+
+        {acceptsUploads && project.photos.length === 0 && (
+          <div className="mb-10 rounded-2xl border border-dashed border-border px-6 py-12 text-center">
+            <p className="text-lg">Aún no hay fotos.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Sé el primero en compartir las tuyas.</p>
+          </div>
+        )}
 
         {isLocked && (
           <div className="mb-6 rounded-lg bg-yellow-500/10 p-3 text-center text-sm text-yellow-500">
@@ -130,6 +170,8 @@ export default async function GalleryPage({
         )}
 
         <GalleryView
+          // Se vuelve a montar cuando un invitado sube fotos: la vista guarda las fotos en su estado
+          key={project.photos.length}
           projectId={project.id}
           photos={project.photos.map((p) => ({
             id: p.id,

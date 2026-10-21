@@ -160,6 +160,15 @@ function PhotoCard({
           onLoad={() => setLoaded(true)}
         />
 
+        {photo.source === "GUEST" && (
+          <span
+            className="absolute right-2 top-2 z-10 max-w-[70%] truncate rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white"
+            title={photo.uploaderName ? `Subida por ${photo.uploaderName}` : "Subida por un invitado"}
+          >
+            {photo.uploaderName ? `Invitado · ${photo.uploaderName}` : "Invitado"}
+          </span>
+        )}
+
         {/* Selection checkbox */}
         {isSelecting && (
           <div className="absolute left-2 top-2 z-10">
