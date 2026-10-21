@@ -5,7 +5,6 @@ import {
   DeleteObjectCommand,
   DeleteObjectsCommand,
   HeadObjectCommand,
-  CopyObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -72,26 +71,32 @@ export async function getPresignedSizedUploadUrl(
   });
 }
 
-/** Primeros `length` bytes del objeto (para reconocer el formato real), o null. */
-export async function readObjectPrefix(objectKey: string, length: number): Promise<Uint8Array | null> {
+/** Tamaño y ETag del objeto, o null si no existe. */
+export async function headObject(objectKey: string): Promise<{ size: number; etag: string } | null> {
   try {
-    const res = await r2Client.send(
-      new GetObjectCommand({ Bucket: R2_BUCKET_NAME, Key: objectKey, Range: `bytes=0-${length - 1}` })
-    );
-    return res.Body ? await res.Body.transformToByteArray() : null;
+    const head = await r2Client.send(new HeadObjectCommand({ Bucket: R2_BUCKET_NAME, Key: objectKey }));
+    return head.ContentLength !== undefined && head.ETag ? { size: head.ContentLength, etag: head.ETag } : null;
   } catch {
     return null;
   }
 }
 
-export async function copyObject(fromKey: string, toKey: string): Promise<void> {
-  await r2Client.send(
-    new CopyObjectCommand({
-      Bucket: R2_BUCKET_NAME,
-      Key: toKey,
-      CopySource: `${R2_BUCKET_NAME}/${fromKey.split("/").map(encodeURIComponent).join("/")}`,
-    })
-  );
+/**
+ * Descarga el objeto solo si sigue siendo la versión medida (mismo ETag): si
+ * alguien lo reescribió entre la medición y la lectura, falla en vez de
+ * devolver bytes distintos de los verificados.
+ */
+export async function getObjectIfMatch(objectKey: string, etag: string): Promise<Buffer | null> {
+  try {
+    const res = await r2Client.send(new GetObjectCommand({ Bucket: R2_BUCKET_NAME, Key: objectKey, IfMatch: etag }));
+    return res.Body ? Buffer.from(await res.Body.transformToByteArray()) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function putObject(objectKey: string, body: Buffer, contentType: string): Promise<void> {
+  await r2Client.send(new PutObjectCommand({ Bucket: R2_BUCKET_NAME, Key: objectKey, Body: body, ContentType: contentType }));
 }
 
 /** Tamaño real del objeto en el bucket, o null si no existe. */
@@ -115,14 +120,16 @@ export async function deleteObject(objectKey: string): Promise<void> {
 }
 
 export async function deleteObjects(objectKeys: string[]): Promise<void> {
-  if (objectKeys.length === 0) return;
-  const command = new DeleteObjectsCommand({
-    Bucket: R2_BUCKET_NAME,
-    Delete: {
-      Objects: objectKeys.map((Key) => ({ Key })),
-    },
-  });
-  await r2Client.send(command);
+  // DeleteObjects acepta como máximo 1000 claves por llamada
+  for (let i = 0; i < objectKeys.length; i += 1000) {
+    const command = new DeleteObjectsCommand({
+      Bucket: R2_BUCKET_NAME,
+      Delete: {
+        Objects: objectKeys.slice(i, i + 1000).map((Key) => ({ Key })),
+      },
+    });
+    await r2Client.send(command);
+  }
 }
 
 export function getObjectKey(
@@ -134,9 +141,8 @@ export function getObjectKey(
   return `${userId}/${projectId}/originals/${photoId}.${ext}`;
 }
 
-export function getGuestStagingKeys(userId: string, projectId: string, uploadId: string, ext: string) {
-  const base = `${userId}/${projectId}/guest-staging/${uploadId}`;
-  return { original: `${base}.${ext}`, thumbnail: `${base}.thumb.webp` };
+export function getGuestStagingKey(userId: string, projectId: string, uploadId: string, ext: string) {
+  return `${userId}/${projectId}/guest-staging/${uploadId}.${ext}`;
 }
 
 export function getThumbnailKey(

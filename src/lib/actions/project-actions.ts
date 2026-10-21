@@ -4,11 +4,11 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { generateUniqueSlug } from "@/lib/slug";
 import { hashPin } from "@/lib/pin";
-import { deleteObjects, getGuestStagingKeys } from "@/lib/r2";
+import { deleteObjects } from "@/lib/r2";
 import type { CreateProjectInput, UpdateProjectInput } from "@/lib/types";
 import type { Prisma } from "@prisma/client";
 import { toGalleryTheme } from "@/lib/themes";
-import { GUEST_MAX_PROJECT_STORAGE_GB } from "@/lib/constants";
+import { GUEST_MAX_PROJECT_STORAGE_GB, GUEST_MIN_PROJECT_STORAGE_GB } from "@/lib/constants";
 import { revalidatePath } from "next/cache";
 
 async function getAuthenticatedUserId(): Promise<string> {
@@ -68,7 +68,7 @@ export async function updateProject(
     const gb = input.storageLimitGb;
     if (gb === null) {
       data.storageLimit = null;
-    } else if (typeof gb === "number" && Number.isFinite(gb) && gb > 0 && gb <= GUEST_MAX_PROJECT_STORAGE_GB) {
+    } else if (typeof gb === "number" && Number.isFinite(gb) && gb >= GUEST_MIN_PROJECT_STORAGE_GB && gb <= GUEST_MAX_PROJECT_STORAGE_GB) {
       data.storageLimit = BigInt(Math.round(gb * 1024 ** 3));
     } else {
       throw new Error(`El tope debe ser un número entre 0,1 y ${GUEST_MAX_PROJECT_STORAGE_GB} GB`);
@@ -97,17 +97,16 @@ export async function deleteProject(projectId: string) {
     select: { objectKey: true, thumbnailKey: true },
   });
 
+  // Las reservas sobreviven al proyecto (projectId pasa a null) con sus claves:
+  // el barrido vuelve a limpiar staging cuando venzan sus URLs de subida.
   const staging = await prisma.guestUpload.findMany({
     where: { projectId, project: { userId }, stagingCleared: false },
-    select: { id: true, extension: true },
+    select: { stagingKey: true },
   });
 
   const keysToDelete = [
     ...photos.flatMap((p) => [p.objectKey, p.thumbnailKey].filter(Boolean) as string[]),
-    ...staging.flatMap((s) => {
-      const k = getGuestStagingKeys(userId, projectId, s.id, s.extension);
-      return [k.original, k.thumbnail];
-    }),
+    ...staging.map((s) => s.stagingKey),
   ];
 
   await prisma.project.delete({

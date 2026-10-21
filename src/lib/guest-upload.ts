@@ -1,9 +1,17 @@
 import { cookies } from "next/headers";
+import sharp from "sharp";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { verifyPinToken } from "@/lib/pin";
-import { deleteObjects, getGuestStagingKeys } from "@/lib/r2";
-import { DEFAULT_STORAGE_LIMIT } from "@/lib/constants";
+import { deleteObjects } from "@/lib/r2";
+import {
+  DEFAULT_STORAGE_LIMIT,
+  GUEST_MAX_PIXELS,
+  GUEST_THUMBNAIL_RESERVE,
+  THUMBNAIL_MAX_WIDTH,
+} from "@/lib/constants";
+
+type Db = Prisma.TransactionClient | typeof prisma;
 
 export type GuestUploadProject = {
   id: string;
@@ -62,86 +70,131 @@ export async function getGuestUploadProject(
 
 /**
  * Serializa dentro de la transacción todo lo que consume la cuota de un dueño
- * (reservas y confirmaciones de invitados), para que dos peticiones simultáneas
- * no lean el mismo uso y se pasen juntas del límite.
+ * (subidas del dashboard, reservas y confirmaciones de invitados), para que dos
+ * peticiones simultáneas no lean el mismo uso y se pasen juntas del límite.
  */
 export async function lockOwner(tx: Prisma.TransactionClient, userId: string) {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"festora-quota:" + userId}))`;
 }
 
-const pendingWhere = { confirmedAt: null, stagingCleared: false } as const;
+/**
+ * Bytes que el bucket puede estar guardando por reservas de invitados: todo
+ * staging que aún no se limpió, sin importar el estado (una URL vigente puede
+ * volver a escribirlo), más lo apartado para la miniatura de las no resueltas.
+ */
+async function guestStagingBytes(db: Db, where: Prisma.GuestUploadWhereInput, excludeIds: string[]) {
+  const base = { ...where, stagingCleared: false, ...(excludeIds.length ? { id: { notIn: excludeIds } } : {}) };
+  const [staging, unresolved] = await Promise.all([
+    db.guestUpload.aggregate({ where: base, _sum: { size: true } }),
+    db.guestUpload.count({ where: { ...base, status: { in: ["PENDING", "PROCESSING"] } } }),
+  ]);
+  return (staging._sum.size ?? 0) + unresolved * GUEST_THUMBNAIL_RESERVE;
+}
 
-/** Bytes de reservas de invitados que todavía ocupan (o pueden ocupar) el bucket. */
-export async function pendingGuestBytes(
-  db: Prisma.TransactionClient | typeof prisma,
-  where: Prisma.GuestUploadWhereInput
-): Promise<number> {
-  const agg = await db.guestUpload.aggregate({
-    where: { ...pendingWhere, ...where },
-    _sum: { size: true, thumbnailSize: true },
-  });
+async function photoBytes(db: Db, where: Prisma.PhotoWhereInput) {
+  const agg = await db.photo.aggregate({ where, _sum: { size: true, thumbnailSize: true } });
   return (agg._sum.size ?? 0) + (agg._sum.thumbnailSize ?? 0);
 }
 
-/** Uso del dueño contando fotos registradas y reservas de invitados en curso. */
-export async function ownerUsage(db: Prisma.TransactionClient | typeof prisma, userId: string) {
-  const [photos, pending] = await Promise.all([
-    db.photo.aggregate({ where: { project: { userId } }, _sum: { size: true } }),
-    pendingGuestBytes(db, { project: { userId } }),
+/**
+ * Uso del dueño: fotos (con miniaturas generadas por el servidor) y staging de
+ * invitados. `excludeIds` deja fuera reservas que el llamador está convirtiendo
+ * en fotos, para no contarlas dos veces.
+ */
+export async function ownerUsage(db: Db, userId: string, excludeIds: string[] = []) {
+  const [photos, staging] = await Promise.all([
+    photoBytes(db, { project: { userId } }),
+    guestStagingBytes(db, { ownerId: userId }, excludeIds),
   ]);
-  return (photos._sum.size ?? 0) + pending;
+  return photos + staging;
 }
 
-export async function projectUsage(db: Prisma.TransactionClient | typeof prisma, projectId: string) {
-  const [photos, pending] = await Promise.all([
-    db.photo.aggregate({ where: { projectId }, _sum: { size: true } }),
-    pendingGuestBytes(db, { projectId }),
+export async function projectUsage(db: Db, projectId: string, excludeIds: string[] = []) {
+  const [photos, staging] = await Promise.all([
+    photoBytes(db, { projectId }),
+    guestStagingBytes(db, { projectId }, excludeIds),
   ]);
-  return (photos._sum.size ?? 0) + pending;
+  return photos + staging;
 }
 
 /**
- * Borra de staging las reservas vencidas (confirmadas o no) y deja de contarlas.
- * Pasado el vencimiento la URL de subida ya no sirve, así que nada puede volver
- * a escribir en esas claves después de esta limpieza.
+ * Limpia staging de reservas vencidas. Pasado `expiresAt` la URL firmada ya no
+ * sirve (vence antes), así que nada vuelve a escribir esas claves. Una reserva
+ * que quedó en PROCESSING (proceso caído) también se lleva su copia final si
+ * nadie llegó a registrarla como foto. Pagina hasta agotar el presupuesto.
  */
-export async function cleanupExpiredGuestUploads(where: Prisma.GuestUploadWhereInput = {}, take = 100) {
-  const expired = await prisma.guestUpload.findMany({
-    where: { ...where, stagingCleared: false, expiresAt: { lt: new Date() } },
-    select: { id: true, extension: true, project: { select: { id: true, userId: true } } },
-    take,
-  });
-  if (expired.length === 0) return 0;
+export async function cleanupExpiredGuestUploads(
+  where: Prisma.GuestUploadWhereInput = {},
+  budgetMs = 15_000
+): Promise<number> {
+  const deadline = Date.now() + budgetMs;
+  let cleared = 0;
+  while (Date.now() < deadline) {
+    const expired = await prisma.guestUpload.findMany({
+      where: { ...where, stagingCleared: false, expiresAt: { lt: new Date() } },
+      select: { id: true, status: true, stagingKey: true, finalKey: true, finalThumbnailKey: true },
+      take: 200,
+    });
+    if (expired.length === 0) break;
 
-  const keys = expired.flatMap((u) => {
-    const k = getGuestStagingKeys(u.project.userId, u.project.id, u.id, u.extension);
-    return [k.original, k.thumbnail];
-  });
-  for (let i = 0; i < keys.length; i += 1000) await deleteObjects(keys.slice(i, i + 1000));
-  await prisma.guestUpload.updateMany({
-    where: { id: { in: expired.map((u) => u.id) } },
-    data: { stagingCleared: true },
-  });
-  return expired.length;
-}
-
-// Firmas de formato: el MIME que declara el navegador no prueba nada.
-export function matchesImageType(bytes: Uint8Array | null, contentType: string): boolean {
-  if (!bytes || bytes.length < 12) return false;
-  const ascii = (from: number, to: number) => String.fromCharCode(...bytes.slice(from, to));
-  switch (contentType) {
-    case "image/jpeg":
-      return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
-    case "image/png":
-      return bytes[0] === 0x89 && ascii(1, 4) === "PNG";
-    case "image/webp":
-      return ascii(0, 4) === "RIFF" && ascii(8, 12) === "WEBP";
-    default:
-      return false;
+    const unconfirmed = expired.filter((u) => u.status !== "CONFIRMED");
+    const registered = new Set(
+      (
+        await prisma.photo.findMany({
+          where: { objectKey: { in: unconfirmed.map((u) => u.finalKey) } },
+          select: { objectKey: true },
+        })
+      ).map((p) => p.objectKey)
+    );
+    const keys = expired.flatMap((u) =>
+      u.status !== "CONFIRMED" && !registered.has(u.finalKey)
+        ? [u.stagingKey, u.finalKey, u.finalThumbnailKey]
+        : [u.stagingKey]
+    );
+    await deleteObjects(keys);
+    await prisma.guestUpload.updateMany({
+      where: { id: { in: expired.map((u) => u.id) }, status: { in: ["PENDING", "PROCESSING"] } },
+      data: { status: "REJECTED" },
+    });
+    await prisma.guestUpload.updateMany({
+      where: { id: { in: expired.map((u) => u.id) } },
+      data: { stagingCleared: true },
+    });
+    cleared += expired.length;
+    if (expired.length < 200) break;
   }
+  return cleared;
 }
 
-/** Dimensión razonable de una foto, o null si viene vacía o absurda. */
-export function cleanDimension(value: unknown): number | null {
-  return typeof value === "number" && Number.isInteger(value) && value > 0 && value <= 20000 ? value : null;
+const SHARP_FORMATS: Record<string, string> = { "image/jpeg": "jpeg", "image/png": "png", "image/webp": "webp" };
+
+export type ProcessedImage = {
+  thumbnail: Buffer;
+  width: number;
+  height: number;
+};
+
+/**
+ * Decodifica de verdad la foto (con límite de píxeles), comprueba que el
+ * formato coincida con el reservado y genera la miniatura en el servidor. Si el
+ * archivo no es una imagen válida, lanza.
+ */
+export async function processGuestImage(buffer: Buffer, contentType: string): Promise<ProcessedImage> {
+  const image = sharp(buffer, { limitInputPixels: GUEST_MAX_PIXELS, failOn: "error" });
+  const meta = await image.metadata();
+  if (meta.format !== SHARP_FORMATS[contentType] || !meta.width || !meta.height) {
+    throw new Error("format");
+  }
+  const thumbnail = await sharp(buffer, { limitInputPixels: GUEST_MAX_PIXELS, failOn: "error" })
+    .rotate() // aplica la orientación EXIF
+    .resize({ width: THUMBNAIL_MAX_WIDTH, height: THUMBNAIL_MAX_WIDTH * 2, fit: "inside", withoutEnlargement: true })
+    .webp({ quality: 80 })
+    .toBuffer();
+  // Dimensiones ya orientadas, como las ve la galería
+  const rotated = (meta.orientation ?? 1) >= 5;
+  return {
+    thumbnail,
+    width: rotated ? meta.height : meta.width,
+    height: rotated ? meta.width : meta.height,
+  };
 }

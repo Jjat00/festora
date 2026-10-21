@@ -11,7 +11,7 @@ import {
   MAX_FILE_SIZE,
   DEFAULT_STORAGE_LIMIT,
 } from "@/lib/constants";
-import { pendingGuestBytes } from "@/lib/guest-upload";
+import { lockOwner, ownerUsage } from "@/lib/guest-upload";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -38,31 +38,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
 
-  // Check storage limit
-  const [user, storageAggregate] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { storageLimit: true },
-    }),
-    prisma.photo.aggregate({
-      where: { project: { userId: session.user.id } },
-      _sum: { size: true },
-    }),
-  ]);
-
-  const storageLimit = Number(user?.storageLimit ?? DEFAULT_STORAGE_LIMIT);
-  // Las reservas de invitados en curso también ocupan cuota (0 si no hay álbum colaborativo)
-  const currentUsage =
-    (storageAggregate._sum.size ?? 0) +
-    (await pendingGuestBytes(prisma, { project: { userId: session.user.id } }));
+  // Check storage limit (bajo el mismo lock que las subidas de invitados)
   const uploadSize = files.reduce((sum, f) => sum + (f.size ?? 0), 0);
+  const storage = await prisma.$transaction(async (tx) => {
+    await lockOwner(tx, session.user!.id!);
+    const user = await tx.user.findUnique({
+      where: { id: session.user!.id! },
+      select: { storageLimit: true },
+    });
+    return {
+      used: await ownerUsage(tx, session.user!.id!),
+      limit: Number(user?.storageLimit ?? DEFAULT_STORAGE_LIMIT),
+    };
+  });
 
-  if (currentUsage + uploadSize > storageLimit) {
+  if (storage.used + uploadSize > storage.limit) {
     return NextResponse.json(
       {
         error: "STORAGE_LIMIT_EXCEEDED",
-        used: currentUsage,
-        limit: storageLimit,
+        used: storage.used,
+        limit: storage.limit,
       },
       { status: 403 }
     );

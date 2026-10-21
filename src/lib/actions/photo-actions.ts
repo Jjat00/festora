@@ -9,7 +9,7 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { dispatchPhotoAnalysis, generateAlbumSuggestions } from "@/lib/actions/ai-actions";
 import { dispatchEmbeddingGeneration } from "@/lib/actions/embedding-actions";
-import { pendingGuestBytes } from "@/lib/guest-upload";
+import { lockOwner, ownerUsage } from "@/lib/guest-upload";
 
 async function getAuthenticatedUserId(): Promise<string> {
   const session = await auth();
@@ -30,47 +30,42 @@ export async function confirmUpload(
   });
   if (!project) throw new Error("Project not found");
 
-  // Double-check storage limit (race condition protection)
-  const [user, storageAggregate] = await Promise.all([
-    prisma.user.findUnique({
+  // Comprobar cuota e insertar bajo el mismo lock que las subidas de invitados:
+  // así dos confirmaciones simultáneas no pueden pasarse juntas del límite.
+  const photos = await prisma.$transaction(async (tx) => {
+    await lockOwner(tx, userId);
+    const user = await tx.user.findUnique({
       where: { id: userId },
       select: { storageLimit: true },
-    }),
-    prisma.photo.aggregate({
-      where: { project: { userId } },
-      _sum: { size: true },
-    }),
-  ]);
+    });
+    const storageLimit = Number(user?.storageLimit ?? DEFAULT_STORAGE_LIMIT);
+    const currentUsage = await ownerUsage(tx, userId);
+    const uploadSize = uploads.reduce((sum, u) => sum + u.size, 0);
 
-  const storageLimit = Number(user?.storageLimit ?? DEFAULT_STORAGE_LIMIT);
-  // Las reservas de invitados en curso también ocupan cuota (0 si no hay álbum colaborativo)
-  const currentUsage =
-    (storageAggregate._sum.size ?? 0) + (await pendingGuestBytes(prisma, { project: { userId } }));
-  const uploadSize = uploads.reduce((sum, u) => sum + u.size, 0);
+    if (currentUsage + uploadSize > storageLimit) {
+      throw new Error("STORAGE_LIMIT_EXCEEDED");
+    }
 
-  if (currentUsage + uploadSize > storageLimit) {
-    throw new Error("STORAGE_LIMIT_EXCEEDED");
-  }
+    // Get current max order
+    const lastPhoto = await tx.photo.findFirst({
+      where: { projectId },
+      orderBy: { order: "desc" },
+      select: { order: true },
+    });
+    const startOrder = (lastPhoto?.order ?? -1) + 1;
 
-  // Get current max order
-  const lastPhoto = await prisma.photo.findFirst({
-    where: { projectId },
-    orderBy: { order: "desc" },
-    select: { order: true },
-  });
-  const startOrder = (lastPhoto?.order ?? -1) + 1;
-
-  const photos = await prisma.photo.createManyAndReturn({
-    data: uploads.map((upload, index) => ({
-      projectId,
-      objectKey: upload.objectKey,
-      thumbnailKey: upload.thumbnailKey,
-      originalFilename: upload.originalFilename,
-      order: startOrder + index,
-      width: upload.width,
-      height: upload.height,
-      size: upload.size,
-    })),
+    return tx.photo.createManyAndReturn({
+      data: uploads.map((upload, index) => ({
+        projectId,
+        objectKey: upload.objectKey,
+        thumbnailKey: upload.thumbnailKey,
+        originalFilename: upload.originalFilename,
+        order: startOrder + index,
+        width: upload.width,
+        height: upload.height,
+        size: upload.size,
+      })),
+    });
   });
 
   // Disparar generación de embeddings en background (independiente del análisis AI)

@@ -78,6 +78,7 @@ export default async function GalleryPage({
   return (
     <div
       data-theme={theme === "default" ? undefined : theme}
+      data-theme-fonts={theme === "default" ? undefined : `${greatVibes.variable} ${cormorant.variable}`}
       className={`min-h-screen bg-background ${theme === "default" ? "" : `${greatVibes.variable} ${cormorant.variable}`}`}
     >
       {theme === "salvia" ? (

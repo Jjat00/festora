@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getGuestStagingKeys, getPresignedSizedUploadUrl } from "@/lib/r2";
+import { getGuestStagingKey, getObjectKey, getPresignedSizedUploadUrl, getThumbnailKey } from "@/lib/r2";
 import {
   GUEST_ALLOWED_TYPES,
   GUEST_HOURLY_LIMIT,
   GUEST_MAX_FILE_SIZE,
   GUEST_MAX_FILES_PER_REQUEST,
   GUEST_MAX_PENDING_PER_PROJECT,
-  GUEST_MAX_THUMBNAIL_SIZE,
+  GUEST_RESERVATION_MARGIN_SECONDS,
   GUEST_RESERVATION_TTL_SECONDS,
+  GUEST_THUMBNAIL_RESERVE,
 } from "@/lib/constants";
 import {
   cleanupExpiredGuestUploads,
@@ -21,23 +22,21 @@ import {
 
 const EXTENSIONS: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 
-type FileRequest = { contentType: string; size: number; thumbnailSize: number };
+type FileRequest = { contentType: string; size: number };
 
 function isFileRequest(f: unknown): f is FileRequest {
   if (!f || typeof f !== "object") return false;
-  const { contentType, size, thumbnailSize } = f as Record<string, unknown>;
+  const { contentType, size } = f as Record<string, unknown>;
   return (
     typeof contentType === "string" &&
     GUEST_ALLOWED_TYPES.includes(contentType) &&
-    Number.isInteger(size) && (size as number) > 0 && (size as number) <= GUEST_MAX_FILE_SIZE &&
-    Number.isInteger(thumbnailSize) && (thumbnailSize as number) > 0 &&
-    (thumbnailSize as number) <= GUEST_MAX_THUMBNAIL_SIZE
+    Number.isInteger(size) && (size as number) > 0 && (size as number) <= GUEST_MAX_FILE_SIZE
   );
 }
 
 /**
- * Reserva espacio para las fotos de un invitado y devuelve PUT firmados por el
- * tamaño exacto, hacia guest-staging/. Nada llega a originals/ sin pasar por confirm.
+ * Reserva espacio para las fotos de un invitado y devuelve un PUT firmado por
+ * el tamaño exacto hacia guest-staging/. Nada llega a originals/ sin pasar por confirm.
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -52,10 +51,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
   }
   if (!files.every(isFileRequest)) return NextResponse.json({ error: "INVALID_FILE" }, { status: 400 });
 
-  await cleanupExpiredGuestUploads({ projectId: project.id });
+  await cleanupExpiredGuestUploads({ ownerId: project.userId }, 3_000);
 
-  const requested = files.reduce((s, f) => s + f.size + f.thumbnailSize, 0);
-  const expiresAt = new Date(Date.now() + GUEST_RESERVATION_TTL_SECONDS * 1000);
+  const requested = files.reduce((s, f) => s + f.size + GUEST_THUMBNAIL_RESERVE, 0);
 
   const result = await prisma.$transaction(async (tx): Promise<Failure | { ids: string[] }> => {
     await lockOwner(tx, project.userId);
@@ -64,7 +62,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
       tx.guestUpload.count({
         where: { projectId: project.id, createdAt: { gt: new Date(Date.now() - 3600_000) } },
       }),
-      tx.guestUpload.count({ where: { projectId: project.id, confirmedAt: null, stagingCleared: false } }),
+      tx.guestUpload.count({ where: { projectId: project.id, stagingCleared: false, status: { not: "CONFIRMED" } } }),
     ]);
     if (lastHour + files.length > GUEST_HOURLY_LIMIT || pending + files.length > GUEST_MAX_PENDING_PER_PROJECT) {
       return { error: "RATE_LIMITED", status: 429 };
@@ -77,15 +75,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
       return { error: "STORAGE_LIMIT_EXCEEDED", status: 403 };
     }
 
-    const rows = files.map((f) => ({
-      id: crypto.randomUUID(),
-      projectId: project.id,
-      extension: EXTENSIONS[f.contentType],
-      contentType: f.contentType,
-      size: f.size,
-      thumbnailSize: f.thumbnailSize,
-      expiresAt,
-    }));
+    // Se fija después del lock: la firma (TTL) se emite enseguida y vence antes que la reserva
+    const expiresAt = new Date(Date.now() + (GUEST_RESERVATION_TTL_SECONDS + GUEST_RESERVATION_MARGIN_SECONDS) * 1000);
+    const rows = files.map((f) => {
+      const id = crypto.randomUUID();
+      const ext = EXTENSIONS[f.contentType];
+      return {
+        id,
+        projectId: project.id,
+        ownerId: project.userId,
+        stagingKey: getGuestStagingKey(project.userId, project.id, id, ext),
+        finalKey: getObjectKey(project.userId, project.id, id, ext),
+        finalThumbnailKey: getThumbnailKey(project.userId, project.id, id),
+        contentType: f.contentType,
+        size: f.size,
+        expiresAt,
+      };
+    });
     await tx.guestUpload.createMany({ data: rows });
     return { ids: rows.map((r) => r.id) };
   });
@@ -95,12 +101,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
   const uploads = await Promise.all(
     result.ids.map(async (id, i) => {
       const f = files[i];
-      const keys = getGuestStagingKeys(project.userId, project.id, id, EXTENSIONS[f.contentType]);
-      const [uploadUrl, thumbnailUploadUrl] = await Promise.all([
-        getPresignedSizedUploadUrl(keys.original, f.contentType, f.size, GUEST_RESERVATION_TTL_SECONDS),
-        getPresignedSizedUploadUrl(keys.thumbnail, "image/webp", f.thumbnailSize, GUEST_RESERVATION_TTL_SECONDS),
-      ]);
-      return { id, uploadUrl, thumbnailUploadUrl };
+      const key = getGuestStagingKey(project.userId, project.id, id, EXTENSIONS[f.contentType]);
+      return { id, uploadUrl: await getPresignedSizedUploadUrl(key, f.contentType, f.size, GUEST_RESERVATION_TTL_SECONDS) };
     })
   );
 

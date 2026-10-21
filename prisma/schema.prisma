@@ -114,6 +114,8 @@ model Photo {
   width            Int?
   height           Int?
   size             Int
+  // Bytes de la miniatura cuando la genera el servidor (fotos de invitados); null en las del dueño
+  thumbnailSize    Int?
   source           PhotoSource @default(OWNER)
   uploaderName     String?
   project          Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -198,24 +200,37 @@ enum ProjectType {
 }
 
 // Reserva de una subida de invitado. El presign la crea con el tamaño que se
-// firma en el PUT; el archivo cae en guest-staging/ y solo pasa a originals/
-// cuando confirm verifica tamaño y contenido. Mientras no se confirme ni se
-// limpie, su tamaño cuenta contra la cuota.
+// firma en el PUT y el archivo cae en `stagingKey`. Confirm la reclama
+// (PENDING -> PROCESSING) antes de tocar archivos, decodifica la imagen y
+// publica en `finalKey`. Mientras staging no se limpie, su tamaño cuenta contra
+// la cuota. Las claves se guardan aquí para poder limpiar aunque se borre el proyecto.
 model GuestUpload {
-  id             String    @id // UUID: también nombra los archivos
-  projectId      String
-  extension      String
-  contentType    String
-  size           Int
-  thumbnailSize  Int
-  createdAt      DateTime  @default(now())
-  expiresAt      DateTime
-  confirmedAt    DateTime?
-  stagingCleared Boolean   @default(false)
-  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id                String            @id // UUID
+  projectId         String?
+  ownerId           String
+  stagingKey        String
+  finalKey          String
+  finalThumbnailKey String
+  contentType       String
+  size              Int
+  status            GuestUploadStatus @default(PENDING)
+  createdAt         DateTime          @default(now())
+  expiresAt         DateTime
+  processingAt      DateTime?
+  confirmedAt       DateTime?
+  stagingCleared    Boolean           @default(false)
+  project           Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([projectId, createdAt])
+  @@index([ownerId, stagingCleared])
   @@index([expiresAt, stagingCleared])
+}
+
+enum GuestUploadStatus {
+  PENDING
+  PROCESSING
+  CONFIRMED
+  REJECTED
 }
 
 enum PhotoSource {

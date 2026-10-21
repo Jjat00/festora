@@ -74,8 +74,6 @@ body {
   --accent-foreground: #ffffff;
   --ring: #7a8d72;
   color-scheme: light;
-  background: var(--background);
-  color: var(--foreground);
 }
 [data-theme="salvia"] .salvia-script { font-family: var(--font-script), cursive; color: #5f7258; font-weight: 400; }
 [data-theme="salvia"] .salvia-serif { font-family: var(--font-serif-theme), serif; color: #3f453b; }

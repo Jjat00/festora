@@ -66,6 +66,8 @@ export function ProjectSettingsForm({ project }: { project: Project }) {
           : null,
       });
       setMessage("Guardado");
+      // Tras quitar el PIN la casilla desaparece: el campo debe volver a quedar editable
+      setRemovePin(false);
       router.refresh();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Error al guardar");

@@ -43,14 +43,25 @@ export async function buildDownloadManifest(
   photos: PhotoRow[],
   zipName: string
 ): Promise<DownloadManifest> {
-  const usedNames = new Map<string, number>();
+  // Se reservan todos los nombres emitidos, también los que genera el sufijo:
+  // "a?.jpg" y "a.jpg" sanean igual, y "a (1).jpg" puede existir de antes.
+  const emitted = new Set<string>();
   function uniqueName(name: string): string {
-    const count = usedNames.get(name) || 0;
-    usedNames.set(name, count + 1);
-    if (count === 0) return name;
+    const key = (n: string) => n.toLowerCase();
+    if (!emitted.has(key(name))) {
+      emitted.add(key(name));
+      return name;
+    }
     const dot = name.lastIndexOf(".");
-    if (dot === -1) return `${name} (${count})`;
-    return `${name.slice(0, dot)} (${count})${name.slice(dot)}`;
+    const stem = dot === -1 ? name : name.slice(0, dot);
+    const ext = dot === -1 ? "" : name.slice(dot);
+    for (let n = 1; ; n++) {
+      const candidate = `${stem} (${n})${ext}`;
+      if (!emitted.has(key(candidate))) {
+        emitted.add(key(candidate));
+        return candidate;
+      }
+    }
   }
 
   const files = await Promise.all(
