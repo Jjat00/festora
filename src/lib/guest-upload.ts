@@ -81,8 +81,10 @@ export async function lockOwner(tx: Prisma.TransactionClient, userId: string) {
 /**
  * Bytes que el bucket puede llegar a guardar por reservas de invitados:
  * - todo staging no limpiado, en cualquier estado (una URL vigente puede volver a escribirlo);
- * - y, para las no resueltas (PENDING/PROCESSING), la copia final que publicará
- *   confirm más lo apartado para su miniatura.
+ * - y, para las no confirmadas (PENDING/PROCESSING/REJECTED), la copia final
+ *   que pudo publicarse más lo apartado para su miniatura. Una REJECTED sigue
+ *   cobrándolo hasta que el barrido verifique el borrado (stagingCleared), porque
+ *   su limpieza de finales pudo fallar.
  * `resolvingIds` son reservas que el llamador está convirtiendo en fotos: su
  * parte "futura" se reemplaza por los bytes reales que él suma, pero su staging
  * sigue contando hasta que el barrido lo limpie.
@@ -91,7 +93,7 @@ async function guestReservedBytes(db: Db, where: Prisma.GuestUploadWhereInput, r
   const live = { ...where, stagingCleared: false };
   const unresolved = {
     ...live,
-    status: { in: ["PENDING", "PROCESSING"] as GuestUploadStatus[] },
+    status: { not: "CONFIRMED" as GuestUploadStatus },
     ...(resolvingIds.length ? { id: { notIn: resolvingIds } } : {}),
   };
   const [staging, future] = await Promise.all([
