@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { deleteObjects, getObjectIfMatch, headObject, putObject } from "@/lib/r2";
+import { deleteObjectsReport, getObjectIfMatch, headObject, putObject } from "@/lib/r2";
 import { GUEST_CONFIRM_BATCH, GUEST_NAME_MAX_LENGTH } from "@/lib/constants";
 import { getGuestUploadProject, lockOwner, ownerUsage, processGuestImage, projectUsage } from "@/lib/guest-upload";
 import { safeFilename } from "@/lib/safe-filename";
@@ -39,15 +39,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
   }
   const ids = [...items.keys()];
 
-  const already = await prisma.guestUpload.findMany({
-    where: { id: { in: ids }, projectId: project.id, status: "CONFIRMED" },
-    select: { id: true },
-  });
-  // En proceso por otra petición: el cliente debe esperar, no pedir otra reserva
-  const inFlight = await prisma.guestUpload.findMany({
-    where: { id: { in: ids }, projectId: project.id, status: "PROCESSING" },
-    select: { id: true },
-  });
+
+  /**
+   * Estado final de cada id pedido, leído al terminar (no instantáneas previas):
+   * los estados solo avanzan, así que una reserva que otra petición confirmó o
+   * está procesando aparece como tal. Lo demás es rechazo terminal.
+   */
+  async function classify() {
+    const rows = await prisma.guestUpload.findMany({
+      where: { id: { in: ids }, projectId: project.id },
+      select: { id: true, status: true },
+    });
+    const by = new Map(rows.map((r) => [r.id, r.status]));
+    return {
+      confirmed: ids.filter((id) => by.get(id) === "CONFIRMED"),
+      processing: ids.filter((id) => by.get(id) === "PROCESSING"),
+      rejected: ids.filter((id) => !["CONFIRMED", "PROCESSING"].includes(by.get(id) ?? "")),
+    };
+  }
 
   // Reclamo exclusivo: otra petición con el mismo id ya no lo puede procesar
   const claimed = await prisma.guestUpload.updateManyAndReturn({
@@ -64,6 +73,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
   const ready: Ready[] = [];
   const rejected: string[] = [];
 
+  /**
+   * Retira los archivos finales de reservas que no se registrarán. Solo las que
+   * R2 confirmó borradas pasan a REJECTED (y dejan de cobrar su copia final);
+   * las demás siguen en PROCESSING, cobrando, hasta que el barrido las tome al
+   * agotarse su plazo de proceso.
+   */
+  async function abandon(rows: { id: string; finalKey: string; finalThumbnailKey: string }[]) {
+    if (rows.length === 0) return;
+    const failed = await deleteObjectsReport(rows.flatMap((r) => [r.finalKey, r.finalThumbnailKey]));
+    const gone = rows.filter((r) => !failed.has(r.finalKey) && !failed.has(r.finalThumbnailKey)).map((r) => r.id);
+    if (gone.length > 0) {
+      await prisma.guestUpload.updateMany({ where: { id: { in: gone }, status: "PROCESSING" }, data: { status: "REJECTED" } });
+    }
+  }
+
   for (const r of claimed) {
     try {
       const head = await headObject(r.stagingKey);
@@ -71,20 +95,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
       const bytes = await getObjectIfMatch(r.stagingKey, head.etag);
       if (!bytes || bytes.length !== r.size) throw new Error("changed");
       const img = await processGuestImage(bytes, r.contentType);
-      await Promise.all([
+      // allSettled: si una escritura falla, esperar a la otra antes de limpiar
+      const writes = await Promise.allSettled([
         putObject(r.finalKey, bytes, r.contentType),
         putObject(r.finalThumbnailKey, img.thumbnail, "image/webp"),
       ]);
+      if (writes.some((w) => w.status === "rejected")) throw new Error("publish");
       ready.push({ ...r, thumbnailSize: img.thumbnail.length, width: img.width, height: img.height });
     } catch {
       rejected.push(r.id);
     }
   }
+  await abandon(claimed.filter((c) => rejected.includes(c.id)));
 
-  let confirmedNow: string[] = [];
   if (ready.length > 0) {
     try {
-      confirmedNow = await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx) => {
         await lockOwner(tx, project.userId);
         const readyIds = ready.map((r) => r.id);
         // Finalizar exige seguir dueño del reclamo: si el barrido dio la reserva
@@ -125,29 +151,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
       });
     } catch (e) {
       // La transacción se revirtió: estas copias finales no las registró nadie
-      // (el reclamo era exclusivo), así que se pueden borrar.
-      await deleteObjects(ready.flatMap((r) => [r.finalKey, r.finalThumbnailKey])).catch(() => {});
-      rejected.push(...ready.map((r) => r.id));
+      // (el reclamo era exclusivo), así que se pueden retirar.
       if (!(e instanceof QuotaExceeded) && !(e instanceof ClaimLost)) console.error("[guest-upload] confirm:", e);
-      await prisma.guestUpload.updateMany({ where: { id: { in: rejected }, status: "PROCESSING" }, data: { status: "REJECTED" } });
+      await abandon(ready);
+      const status = await classify();
       return NextResponse.json(
-        { error: e instanceof QuotaExceeded ? "STORAGE_LIMIT_EXCEEDED" : "CONFIRM_FAILED", confirmed: already.map((a) => a.id) },
+        { error: e instanceof QuotaExceeded ? "STORAGE_LIMIT_EXCEEDED" : "CONFIRM_FAILED", ...status },
         { status: e instanceof QuotaExceeded ? 403 : 500 }
       );
     }
   }
 
-  if (rejected.length > 0) {
-    // Rechazadas siguen contando hasta que el barrido limpie staging tras vencer su firma
-    await prisma.guestUpload.updateMany({ where: { id: { in: rejected }, status: "PROCESSING" }, data: { status: "REJECTED" } });
-  }
-
   // Staging ya no hace falta; si falla, el barrido lo vuelve a intentar. No debe
   // convertir un registro exitoso en un error para el invitado.
-  await deleteObjects([...ready, ...claimed.filter((c) => rejected.includes(c.id))].map((r) => r.stagingKey)).catch(() => {});
+  // (Las rechazadas siguen cobrando su staging hasta que el barrido lo limpie tras vencer la firma.)
+  await deleteObjectsReport(claimed.map((r) => r.stagingKey)).catch(() => null);
 
-  return NextResponse.json(
-    { confirmed: [...already.map((a) => a.id), ...confirmedNow], processing: inFlight.map((p) => p.id), rejected },
-    { headers: { "Cache-Control": "no-store" } }
-  );
+  return NextResponse.json(await classify(), { headers: { "Cache-Control": "no-store" } });
 }
