@@ -11,6 +11,7 @@ export const maxDuration = 60;
 type Item = { id: string; originalFilename?: unknown };
 
 class QuotaExceeded extends Error {}
+class ClaimLost extends Error {}
 
 /**
  * Convierte reservas de invitados en fotos. Cada reserva se reclama en
@@ -40,6 +41,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
 
   const already = await prisma.guestUpload.findMany({
     where: { id: { in: ids }, projectId: project.id, status: "CONFIRMED" },
+    select: { id: true },
+  });
+  // En proceso por otra petición: el cliente debe esperar, no pedir otra reserva
+  const inFlight = await prisma.guestUpload.findMany({
+    where: { id: { in: ids }, projectId: project.id, status: "PROCESSING" },
     select: { id: true },
   });
 
@@ -81,6 +87,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
       confirmedNow = await prisma.$transaction(async (tx) => {
         await lockOwner(tx, project.userId);
         const readyIds = ready.map((r) => r.id);
+        // Finalizar exige seguir dueño del reclamo: si el barrido dio la reserva
+        // por abandonada (REJECTED), aquí no se registra nada
+        const finalized = await tx.guestUpload.updateMany({
+          where: { id: { in: readyIds }, status: "PROCESSING" },
+          data: { status: "CONFIRMED", confirmedAt: new Date() },
+        });
+        if (finalized.count !== readyIds.length) throw new ClaimLost();
         const adding = ready.reduce((s, r) => s + r.size + r.thumbnailSize, 0);
         if ((await ownerUsage(tx, project.userId, readyIds)) + adding > project.userStorageLimit) throw new QuotaExceeded();
         if (project.storageLimit !== null && (await projectUsage(tx, project.id, readyIds)) + adding > project.storageLimit) {
@@ -108,10 +121,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
             uploaderName,
           })),
         });
-        await tx.guestUpload.updateMany({
-          where: { id: { in: readyIds }, status: "PROCESSING" },
-          data: { status: "CONFIRMED", confirmedAt: new Date() },
-        });
         return readyIds;
       });
     } catch (e) {
@@ -119,7 +128,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
       // (el reclamo era exclusivo), así que se pueden borrar.
       await deleteObjects(ready.flatMap((r) => [r.finalKey, r.finalThumbnailKey])).catch(() => {});
       rejected.push(...ready.map((r) => r.id));
-      if (!(e instanceof QuotaExceeded)) console.error("[guest-upload] confirm:", e);
+      if (!(e instanceof QuotaExceeded) && !(e instanceof ClaimLost)) console.error("[guest-upload] confirm:", e);
       await prisma.guestUpload.updateMany({ where: { id: { in: rejected }, status: "PROCESSING" }, data: { status: "REJECTED" } });
       return NextResponse.json(
         { error: e instanceof QuotaExceeded ? "STORAGE_LIMIT_EXCEEDED" : "CONFIRM_FAILED", confirmed: already.map((a) => a.id) },
@@ -138,7 +147,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
   await deleteObjects([...ready, ...claimed.filter((c) => rejected.includes(c.id))].map((r) => r.stagingKey)).catch(() => {});
 
   return NextResponse.json(
-    { confirmed: [...already.map((a) => a.id), ...confirmedNow], rejected },
+    { confirmed: [...already.map((a) => a.id), ...confirmedNow], processing: inFlight.map((p) => p.id), rejected },
     { headers: { "Cache-Control": "no-store" } }
   );
 }

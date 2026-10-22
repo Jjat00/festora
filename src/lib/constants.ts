@@ -23,6 +23,8 @@ export const GUEST_NAME_MAX_LENGTH = 60;
 export const GUEST_THUMBNAIL_RESERVE = 512 * 1024;
 export const GUEST_MAX_PIXELS = 40_000_000; // límite de decodificación en el servidor
 export const GUEST_CONFIRM_BATCH = 5;
+// Una reserva en PROCESSING se da por abandonada pasado este tiempo (confirm dura como máximo 60 s)
+export const GUEST_PROCESSING_LEASE_SECONDS = 5 * 60;
 export const GUEST_ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"]; // HEIC se convierte en el navegador
 export const GUEST_RESERVATION_TTL_SECONDS = 15 * 60;
 // La reserva vence un poco después que la firma, para que el barrido nunca

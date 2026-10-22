@@ -119,6 +119,26 @@ export async function deleteObject(objectKey: string): Promise<void> {
   await r2Client.send(command);
 }
 
+/**
+ * Como deleteObjects, pero devuelve las claves que R2 no pudo borrar
+ * (DeleteObjects responde 200 aunque algunos objetos fallen).
+ */
+export async function deleteObjectsReport(objectKeys: string[]): Promise<Set<string>> {
+  const failed = new Set<string>();
+  for (let i = 0; i < objectKeys.length; i += 1000) {
+    const batch = objectKeys.slice(i, i + 1000);
+    try {
+      const res = await r2Client.send(
+        new DeleteObjectsCommand({ Bucket: R2_BUCKET_NAME, Delete: { Objects: batch.map((Key) => ({ Key })) } })
+      );
+      for (const err of res.Errors ?? []) if (err.Key) failed.add(err.Key);
+    } catch {
+      batch.forEach((k) => failed.add(k));
+    }
+  }
+  return failed;
+}
+
 export async function deleteObjects(objectKeys: string[]): Promise<void> {
   // DeleteObjects acepta como máximo 1000 claves por llamada
   for (let i = 0; i < objectKeys.length; i += 1000) {

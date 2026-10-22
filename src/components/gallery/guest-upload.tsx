@@ -189,23 +189,36 @@ export function GuestUpload({ slug, closesAt }: { slug: string; closesAt: string
     return { ok: res.ok, data };
   }
 
-  /** Confirma las reservas subidas, de a GUEST_CONFIRM_BATCH. */
+  /**
+   * Confirma las reservas subidas, de a GUEST_CONFIRM_BATCH. Si otra petición
+   * todavía las está procesando (p. ej. un intento anterior cuya respuesta se
+   * perdió), espera y vuelve a preguntar por la misma reserva en vez de crear otra.
+   */
   async function confirmUploaded() {
-    const uploaded = itemsRef.current.filter((it) => it.status === "uploaded" && it.reservation);
-    for (let i = 0; i < uploaded.length; i += GUEST_CONFIRM_BATCH) {
-      const chunk = uploaded.slice(i, i + GUEST_CONFIRM_BATCH);
-      const { ok, data } = await postJson("confirm", {
-        uploaderName: name,
-        items: chunk.map((it) => ({ id: it.reservation, originalFilename: it.prepared?.filename })),
-      });
-      const confirmed = new Set<string>(data.confirmed ?? []);
-      for (const it of chunk) {
-        if (confirmed.has(it.reservation!)) patch(it.file, { status: "done" });
-        else if (ok) patch(it.file, { status: "failed", reservation: undefined });
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const uploaded = itemsRef.current.filter((it) => it.status === "uploaded" && it.reservation);
+      if (uploaded.length === 0) return;
+      let waiting = false;
+      for (let i = 0; i < uploaded.length; i += GUEST_CONFIRM_BATCH) {
+        const chunk = uploaded.slice(i, i + GUEST_CONFIRM_BATCH);
+        const { ok, data } = await postJson("confirm", {
+          uploaderName: name,
+          items: chunk.map((it) => ({ id: it.reservation, originalFilename: it.prepared?.filename })),
+        });
+        const confirmed = new Set<string>(data.confirmed ?? []);
+        const processing = new Set<string>(data.processing ?? []);
+        for (const it of chunk) {
+          if (confirmed.has(it.reservation!)) patch(it.file, { status: "done" });
+          else if (processing.has(it.reservation!)) waiting = true;
+          else if (ok) patch(it.file, { status: "failed", reservation: undefined });
+        }
+        // Error del servidor: las no confirmadas conservan su reserva para reintentar
+        if (!ok) throw new UploadError(ERRORS[data.error] ?? "No pudimos guardar las fotos. Intenta de nuevo.");
       }
-      // Error del servidor: las no confirmadas conservan su reserva para reintentar
-      if (!ok) throw new UploadError(ERRORS[data.error] ?? "No pudimos guardar las fotos. Intenta de nuevo.");
+      if (!waiting) return;
+      await new Promise((r) => setTimeout(r, 3000));
     }
+    throw new UploadError("Algunas fotos siguen procesándose. Intenta de nuevo en un minuto.");
   }
 
   /** Prepara, reserva y sube un lote nuevo. */

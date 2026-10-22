@@ -9,7 +9,6 @@ import {
   GUEST_MAX_PENDING_PER_PROJECT,
   GUEST_RESERVATION_MARGIN_SECONDS,
   GUEST_RESERVATION_TTL_SECONDS,
-  GUEST_THUMBNAIL_RESERVE,
 } from "@/lib/constants";
 import {
   cleanupExpiredGuestUploads,
@@ -17,6 +16,7 @@ import {
   lockOwner,
   ownerUsage,
   projectUsage,
+  reservationCost,
   type Failure,
 } from "@/lib/guest-upload";
 
@@ -53,7 +53,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
 
   await cleanupExpiredGuestUploads({ ownerId: project.userId }, 3_000);
 
-  const requested = files.reduce((s, f) => s + f.size + GUEST_THUMBNAIL_RESERVE, 0);
+  // Mientras la URL siga viva pueden coexistir staging y la copia final
+  const requested = files.reduce((s, f) => s + reservationCost(f.size), 0);
 
   const result = await prisma.$transaction(async (tx): Promise<Failure | { ids: string[] }> => {
     await lockOwner(tx, project.userId);

@@ -1,12 +1,13 @@
 import { cookies } from "next/headers";
 import sharp from "sharp";
-import type { Prisma } from "@prisma/client";
+import type { GuestUploadStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { verifyPinToken } from "@/lib/pin";
-import { deleteObjects } from "@/lib/r2";
+import { deleteObjectsReport } from "@/lib/r2";
 import {
   DEFAULT_STORAGE_LIMIT,
   GUEST_MAX_PIXELS,
+  GUEST_PROCESSING_LEASE_SECONDS,
   GUEST_THUMBNAIL_RESERVE,
   THUMBNAIL_MAX_WIDTH,
 } from "@/lib/constants";
@@ -78,17 +79,31 @@ export async function lockOwner(tx: Prisma.TransactionClient, userId: string) {
 }
 
 /**
- * Bytes que el bucket puede estar guardando por reservas de invitados: todo
- * staging que aún no se limpió, sin importar el estado (una URL vigente puede
- * volver a escribirlo), más lo apartado para la miniatura de las no resueltas.
+ * Bytes que el bucket puede llegar a guardar por reservas de invitados:
+ * - todo staging no limpiado, en cualquier estado (una URL vigente puede volver a escribirlo);
+ * - y, para las no resueltas (PENDING/PROCESSING), la copia final que publicará
+ *   confirm más lo apartado para su miniatura.
+ * `resolvingIds` son reservas que el llamador está convirtiendo en fotos: su
+ * parte "futura" se reemplaza por los bytes reales que él suma, pero su staging
+ * sigue contando hasta que el barrido lo limpie.
  */
-async function guestStagingBytes(db: Db, where: Prisma.GuestUploadWhereInput, excludeIds: string[]) {
-  const base = { ...where, stagingCleared: false, ...(excludeIds.length ? { id: { notIn: excludeIds } } : {}) };
-  const [staging, unresolved] = await Promise.all([
-    db.guestUpload.aggregate({ where: base, _sum: { size: true } }),
-    db.guestUpload.count({ where: { ...base, status: { in: ["PENDING", "PROCESSING"] } } }),
+async function guestReservedBytes(db: Db, where: Prisma.GuestUploadWhereInput, resolvingIds: string[]) {
+  const live = { ...where, stagingCleared: false };
+  const unresolved = {
+    ...live,
+    status: { in: ["PENDING", "PROCESSING"] as GuestUploadStatus[] },
+    ...(resolvingIds.length ? { id: { notIn: resolvingIds } } : {}),
+  };
+  const [staging, future] = await Promise.all([
+    db.guestUpload.aggregate({ where: live, _sum: { size: true } }),
+    db.guestUpload.aggregate({ where: unresolved, _sum: { size: true }, _count: true }),
   ]);
-  return (staging._sum.size ?? 0) + unresolved * GUEST_THUMBNAIL_RESERVE;
+  return (staging._sum.size ?? 0) + (future._sum.size ?? 0) + future._count * GUEST_THUMBNAIL_RESERVE;
+}
+
+/** Lo que una reserva nueva aparta: staging + copia final + miniatura. */
+export function reservationCost(size: number) {
+  return 2 * size + GUEST_THUMBNAIL_RESERVE;
 }
 
 async function photoBytes(db: Db, where: Prisma.PhotoWhereInput) {
@@ -96,32 +111,32 @@ async function photoBytes(db: Db, where: Prisma.PhotoWhereInput) {
   return (agg._sum.size ?? 0) + (agg._sum.thumbnailSize ?? 0);
 }
 
-/**
- * Uso del dueño: fotos (con miniaturas generadas por el servidor) y staging de
- * invitados. `excludeIds` deja fuera reservas que el llamador está convirtiendo
- * en fotos, para no contarlas dos veces.
- */
-export async function ownerUsage(db: Db, userId: string, excludeIds: string[] = []) {
-  const [photos, staging] = await Promise.all([
+/** Uso del dueño: fotos (con miniaturas generadas por el servidor) más reservas de invitados. */
+export async function ownerUsage(db: Db, userId: string, resolvingIds: string[] = []) {
+  const [photos, reserved] = await Promise.all([
     photoBytes(db, { project: { userId } }),
-    guestStagingBytes(db, { ownerId: userId }, excludeIds),
+    guestReservedBytes(db, { ownerId: userId }, resolvingIds),
   ]);
-  return photos + staging;
+  return photos + reserved;
 }
 
-export async function projectUsage(db: Db, projectId: string, excludeIds: string[] = []) {
-  const [photos, staging] = await Promise.all([
+export async function projectUsage(db: Db, projectId: string, resolvingIds: string[] = []) {
+  const [photos, reserved] = await Promise.all([
     photoBytes(db, { projectId }),
-    guestStagingBytes(db, { projectId }, excludeIds),
+    guestReservedBytes(db, { projectId }, resolvingIds),
   ]);
-  return photos + staging;
+  return photos + reserved;
 }
 
 /**
- * Limpia staging de reservas vencidas. Pasado `expiresAt` la URL firmada ya no
- * sirve (vence antes), así que nada vuelve a escribir esas claves. Una reserva
- * que quedó en PROCESSING (proceso caído) también se lleva su copia final si
- * nadie llegó a registrarla como foto. Pagina hasta agotar el presupuesto.
+ * Limpia reservas vencidas. Primero cambia el estado de forma atómica y solo
+ * borra lo que esa transición le dio derecho a borrar:
+ * - PENDING vencida -> REJECTED: nadie la reclamó, se borran staging y finales;
+ * - PROCESSING con el plazo de proceso agotado -> REJECTED: el confirmador
+ *   murió; su finalización exige seguir en PROCESSING, así que ya no registrará;
+ * - REJECTED: staging y finales (una rechazada nunca llegó a registrar foto);
+ * - CONFIRMED: solo staging (las finales son de una foto).
+ * Una reserva se marca limpia únicamente si R2 confirmó el borrado de sus objetos.
  */
 export async function cleanupExpiredGuestUploads(
   where: Prisma.GuestUploadWhereInput = {},
@@ -130,38 +145,40 @@ export async function cleanupExpiredGuestUploads(
   const deadline = Date.now() + budgetMs;
   let cleared = 0;
   while (Date.now() < deadline) {
-    const expired = await prisma.guestUpload.findMany({
-      where: { ...where, stagingCleared: false, expiresAt: { lt: new Date() } },
+    const now = new Date();
+    const staleProcessing = new Date(now.getTime() - GUEST_PROCESSING_LEASE_SECONDS * 1000);
+    const base = { ...where, stagingCleared: false, expiresAt: { lt: now } };
+
+    const abandoned = await prisma.guestUpload.updateManyAndReturn({
+      where: {
+        ...base,
+        OR: [{ status: "PENDING" }, { status: "PROCESSING", processingAt: { lt: staleProcessing } }],
+      },
+      data: { status: "REJECTED" },
+      select: { id: true, stagingKey: true, finalKey: true, finalThumbnailKey: true },
+      limit: 200,
+    });
+    const settled = await prisma.guestUpload.findMany({
+      where: { ...base, status: { in: ["CONFIRMED", "REJECTED"] }, id: { notIn: abandoned.map((a) => a.id) } },
       select: { id: true, status: true, stagingKey: true, finalKey: true, finalThumbnailKey: true },
       take: 200,
     });
-    if (expired.length === 0) break;
+    if (abandoned.length === 0 && settled.length === 0) break;
 
-    const unconfirmed = expired.filter((u) => u.status !== "CONFIRMED");
-    const registered = new Set(
-      (
-        await prisma.photo.findMany({
-          where: { objectKey: { in: unconfirmed.map((u) => u.finalKey) } },
-          select: { objectKey: true },
-        })
-      ).map((p) => p.objectKey)
-    );
-    const keys = expired.flatMap((u) =>
-      u.status !== "CONFIRMED" && !registered.has(u.finalKey)
-        ? [u.stagingKey, u.finalKey, u.finalThumbnailKey]
-        : [u.stagingKey]
-    );
-    await deleteObjects(keys);
-    await prisma.guestUpload.updateMany({
-      where: { id: { in: expired.map((u) => u.id) }, status: { in: ["PENDING", "PROCESSING"] } },
-      data: { status: "REJECTED" },
-    });
-    await prisma.guestUpload.updateMany({
-      where: { id: { in: expired.map((u) => u.id) } },
-      data: { stagingCleared: true },
-    });
-    cleared += expired.length;
-    if (expired.length < 200) break;
+    const owned = new Map<string, string[]>();
+    for (const a of abandoned) owned.set(a.id, [a.stagingKey, a.finalKey, a.finalThumbnailKey]);
+    for (const s of settled) {
+      owned.set(s.id, s.status === "REJECTED" ? [s.stagingKey, s.finalKey, s.finalThumbnailKey] : [s.stagingKey]);
+    }
+
+    const failed = await deleteObjectsReport([...owned.values()].flat());
+    const done = [...owned.entries()].filter(([, keys]) => keys.every((k) => !failed.has(k))).map(([id]) => id);
+    if (done.length > 0) {
+      await prisma.guestUpload.updateMany({ where: { id: { in: done } }, data: { stagingCleared: true } });
+    }
+    cleared += done.length;
+    // Si todo lo de esta vuelta falló, no insistir en bucle: el siguiente barrido reintenta
+    if (done.length === 0 || abandoned.length + settled.length < 200) break;
   }
   return cleared;
 }

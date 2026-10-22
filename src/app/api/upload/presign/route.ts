@@ -11,7 +11,7 @@ import {
   MAX_FILE_SIZE,
   DEFAULT_STORAGE_LIMIT,
 } from "@/lib/constants";
-import { lockOwner, ownerUsage } from "@/lib/guest-upload";
+import { cleanupExpiredGuestUploads, lockOwner, ownerUsage } from "@/lib/guest-upload";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -37,6 +37,9 @@ export async function POST(req: NextRequest) {
   if (!project) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
+
+  // Reservas de invitados vencidas dejan de ocupar cuota antes de medir (no-op sin álbum)
+  await cleanupExpiredGuestUploads({ ownerId: session.user.id }, 2_000);
 
   // Check storage limit (bajo el mismo lock que las subidas de invitados)
   const uploadSize = files.reduce((sum, f) => sum + (f.size ?? 0), 0);
